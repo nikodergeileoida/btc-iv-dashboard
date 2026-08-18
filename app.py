@@ -5,7 +5,7 @@ st.set_page_config(page_title="BTC Live Terminal", layout="wide", initial_sideba
 
 st.markdown("""
     <style>
-        .stApp { background-color: #050505 !important; color: #FFFFFF !important; }
+        .stApp { background-color: #000000 !important; color: #FFFFFF !important; }
         footer { visibility: hidden; }
         header[data-testid="stHeader"] { background-color: transparent !important; }
     </style>
@@ -14,7 +14,7 @@ st.markdown("""
 st.sidebar.title("⚙️ Terminal Steuerung")
 view_mode = st.sidebar.radio("Ansicht wählen:", [
     "Live Kerzenchart (TradingView Native)", 
-    "3D Volatility Surface (Kamera-Lock)"
+    "3D Volatility Surface (Ultra Live)"
 ])
 
 html_code = f"""
@@ -27,10 +27,10 @@ html_code = f"""
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <style>
         * {{ box-sizing: border-box; }}
-        body {{ background-color: #050505; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 12px; }}
+        body {{ background-color: #000000; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 12px; }}
         .header {{ font-family: monospace; font-size: 1.1rem; color: #888888; }}
         .price {{ font-size: 2.2rem; font-weight: 800; color: #FF9900; margin-bottom: 8px; letter-spacing: -0.5px; }}
-        #chart-container {{ width: 100%; height: 680px; background-color: #050505; border-radius: 6px; position: relative; }}
+        #chart-container {{ width: 100%; height: 680px; background-color: #000000; border-radius: 6px; position: relative; }}
     </style>
 </head>
 <body>
@@ -44,7 +44,7 @@ html_code = f"""
         const priceEl = document.getElementById('btc-price');
         let currentPrice = 65000;
 
-        // Fallback-Daten Generator gegen Blackscreens bei API-Sperren
+        // Fallback-Kerzen Generator
         function generateFallbackCandles() {{
             let list = [];
             let now = Math.floor(Date.now() / 1000) - 100 * 60;
@@ -61,19 +61,19 @@ html_code = f"""
         }}
 
         // ====================================================
-        // 1. TRADINGVIEW NATIVE CANDLESTICK ENGINE
+        // 1. TRADINGVIEW NATIVE CANDLESTICK ENGINE (SCHWARZER BG)
         // ====================================================
         if (viewMode.includes("Kerzenchart")) {{
             const chart = LightweightCharts.createChart(container, {{
                 width: container.clientWidth,
                 height: 680,
-                layout: {{ backgroundColor: '#050505', textColor: '#A0A0A0' }},
-                grid: {{ vertLines: {{ color: '#121212' }}, horzLines: {{ color: '#121212' }} }},
+                layout: {{ backgroundColor: '#000000', textColor: '#A0A0A0' }},
+                grid: {{ vertLines: {{ color: '#0F0F0F' }}, horzLines: {{ color: '#0F0F0F' }} }},
                 crosshair: {{ mode: LightweightCharts.CrosshairMode.Normal }},
                 rightPriceScale: {{ borderColor: '#222222', autoScale: true }},
                 timeScale: {{ borderColor: '#222222', timeVisible: true, secondsVisible: false }},
                 handleScroll: true,
-                handleScale: true // Erlaubt Achsen-Stretching & Zooming!
+                handleScale: true
             }});
 
             const candleSeries = chart.addCandlestickSeries({{
@@ -85,14 +85,12 @@ html_code = f"""
                 wickDownColor: '#FF0055',
             }});
 
-            // Resize Observer gegen Blackscreen beim Fenster-Resizen
             new ResizeObserver(entries => {{
                 if (entries[0] && entries[0].contentRect) {{
                     chart.applyOptions({{ width: entries[0].contentRect.width }});
                 }}
             }}).observe(container);
 
-            // Binance History laden
             fetch("https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=120")
                 .then(res => res.json())
                 .then(data => {{
@@ -115,7 +113,6 @@ html_code = f"""
                     candleSeries.setData(generateFallbackCandles());
                 }});
 
-            // Live WebSocket Stream (NUR DIE NEUESTE KERZE TICKT LIVE)
             function connectCandleWS() {{
                 const ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@kline_1m');
                 ws.onmessage = (event) => {{
@@ -134,15 +131,14 @@ html_code = f"""
                         priceEl.innerText = "$" + currentPrice.toLocaleString('en-US', {{minimumFractionDigits: 2, maximumFractionDigits: 2}});
                     }} catch(e) {{}}
                 }};
-                ws.onclose = () => setTimeout(connectCandleWS, 1000); // Auto Reconnect gegen Ausfälle
+                ws.onclose = () => setTimeout(connectCandleWS, 1000);
             }}
             connectCandleWS();
 
         // ====================================================
-        // 2. FLACKERFREIER 3D CHART ENGINE MIT LIVE KAMERA-TRACKING
+        // 2. ULTRA-LIVE 3D CHART ENGINE (MILLISEKUNDEN-ANIMATION + KAMERA-LOCK)
         // ====================================================
         }} else {{
-            let liveUserCamera = null; // Speichert deine exakte Kamera-Sicht
             let tOffset = 0;
 
             function calc3DSurface(price, offset) {{
@@ -165,7 +161,6 @@ html_code = f"""
                 return {{ x: strikes, y: expiries, z: zValues }};
             }}
 
-            // Initiales Plotly Rendering
             fetch("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT")
                 .then(res => res.json())
                 .then(data => {{ if(data.price) currentPrice = parseFloat(data.price); }})
@@ -181,10 +176,10 @@ html_code = f"""
                     }};
 
                     let layout = {{
-                        paper_bgcolor: '#050505',
-                        plot_bgcolor: '#050505',
+                        paper_bgcolor: '#000000',
+                        plot_bgcolor: '#000000',
                         margin: {{ l: 0, r: 0, b: 0, t: 0 }},
-                        uirevision: 'permanent_lock',
+                        uirevision: 'persistent_camera_lock', // Hält deine Kamera dauerhaft fest!
                         scene: {{
                             xaxis: {{ title: 'Strike ($)', gridcolor: '#222222', color: '#888' }},
                             yaxis: {{ title: 'Days', gridcolor: '#222222', color: '#888' }},
@@ -193,17 +188,56 @@ html_code = f"""
                         }}
                     }};
 
-                    Plotly.newPlot(container, [trace], layout, {{ responsive: true, displayModeBar: false }}).then(() => {{
-                        // ERFOLG: Abfangen jeder Kamera-Drehung durch den Nutzer!
-                        container.on('plotly_relayout', function(eventData) {{
-                            if (eventData && eventData['scene.camera']) {{
-                                liveUserCamera = eventData['scene.camera'];
+                    Plotly.newPlot(container, [trace], layout, {{ responsive: true, displayModeBar: false }});
+
+                    // Millisekunden-Smooth Animation Loop (requestAnimationFrame für ultra-flüssige Wellen)
+                    function animate3D() {{
+                        tOffset += 0.015; // Millisekunden-Schrittweite für butterweiche Animation
+                        let surf = animSurf(currentPrice, tOffset);
+                        
+                        // WICHTIG: KEINE Kamera im Layout übergeben -> uirevision behält deine Maus-Drehung bei!
+                        Plotly.react(container, [{{
+                            x: surf.x, y: surf.y, z: surf.z,
+                            type: 'surface',
+                            colorscale: [[0.0, '#0D0887'], [0.35, '#6A00A8'], [0.70, '#B12A90'], [1.0, '#FCA636']],
+                            showscale: true
+                        }}], {{
+                            paper_bgcolor: '#000000',
+                            plot_bgcolor: '#000000',
+                            margin: {{ l: 0, r: 0, b: 0, t: 0 }},
+                            uirevision: 'persistent_camera_lock',
+                            scene: {{
+                                xaxis: {{ title: 'Strike ($)', gridcolor: '#222222', color: '#888' }},
+                                yaxis: {{ title: 'Days', gridcolor: '#222222', color: '#888' }},
+                                zaxis: {{ title: 'IV (%)', gridcolor: '#222222', color: '#888' }}
                             }}
-                        }});
-                    }});
+                        }}, {{ responsive: true, displayModeBar: false }});
+
+                        requestAnimationFrame(animate3D);
+                    }}
+
+                    function animSurf(price, offset) {{
+                        let strikes = [], expiries = [], zValues = [];
+                        for(let i=0; i<30; i++) strikes.push(price * (0.65 + i * 0.024));
+                        for(let j=0; j<30; j++) expiries.push(7 + j * 5.8);
+                        for(let j=0; j<30; j++) {{
+                            let row = [];
+                            let T = expiries[j];
+                            for(let i=0; i<30; i++) {{
+                                let K = strikes[i];
+                                let moneyness = Math.log(K / price);
+                                let wave = Math.sin(2 * Math.PI * (K / price) + offset) * 2.0;
+                                let iv = (0.35 + 0.25 * Math.pow(moneyness, 2) + 0.08 * (1.0 / Math.sqrt(T / 30.0))) * 100.0 + wave;
+                                row.push(iv);
+                            }}
+                            zValues.push(row);
+                        }}
+                        return {{ x: strikes, y: expiries, z: zValues }};
+                    }}
+
+                    requestAnimationFrame(animate3D);
                 }});
 
-            // Price Live Ticker
             function connectTickerWS() {{
                 const ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@ticker');
                 ws.onmessage = (event) => {{
@@ -216,34 +250,6 @@ html_code = f"""
                 ws.onclose = () => setTimeout(connectTickerWS, 1000);
             }}
             connectTickerWS();
-
-            // 1-Sekunden Live 3D-Update LOOP (OHNE KAMERA RESET)
-            setInterval(() => {{
-                tOffset += 0.25;
-                let surf = calc3DSurface(currentPrice, tOffset);
-
-                let updatedLayout = {{
-                    paper_bgcolor: '#050505',
-                    plot_bgcolor: '#050505',
-                    margin: {{ l: 0, r: 0, b: 0, t: 0 }},
-                    uirevision: 'permanent_lock',
-                    scene: {{
-                        xaxis: {{ title: 'Strike ($)', gridcolor: '#222222', color: '#888' }},
-                        yaxis: {{ title: 'Days', gridcolor: '#222222', color: '#888' }},
-                        zaxis: {{ title: 'IV (%)', gridcolor: '#222222', color: '#888' }},
-                        // WICHTIG: Wenn du die Kamera bewegt hast, verwende DEINE neue Sicht!
-                        camera: liveUserCamera || {{ eye: {{ x: -1.5, y: -1.5, z: 0.8 }} }}
-                    }}
-                }};
-
-                Plotly.react(container, [{{
-                    x: surf.x, y: surf.y, z: surf.z,
-                    type: 'surface',
-                    colorscale: [[0.0, '#0D0887'], [0.35, '#6A00A8'], [0.70, '#B12A90'], [1.0, '#FCA636']],
-                    showscale: true
-                }}], updatedLayout, {{ responsive: true, displayModeBar: false }});
-
-            }}, 1000);
         }}
     </script>
 </body>
