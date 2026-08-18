@@ -56,7 +56,7 @@ def get_market_status():
 
 status_text, status_flag = get_market_status()
 
-# Session State für stabile Kursdaten
+# Session State für stabile Kursdaten & Live-Feed Simulation
 if "market_data" not in st.session_state or st.session_state.get("current_market") != selected_market:
     np.random.seed(sum(map(ord, selected_market)))
     timestamps = [datetime.now() - timedelta(minutes=i) for i in range(40, 0, -1)]
@@ -84,6 +84,13 @@ if "market_data" not in st.session_state or st.session_state.get("current_market
     st.session_state.current_market = selected_market
 
 data = st.session_state.market_data
+
+# Live-Tick: Aktualisiert den Preis bei jedem Rerun dynamisch
+tick_change = np.random.randn() * (base_price * 0.0003)
+data["closes"][-1] += tick_change
+data["highs"][-1] = max(data["highs"][-1], data["closes"][-1])
+data["lows"][-1] = min(data["lows"][-1], data["closes"][-1])
+
 current_price = data["closes"][-1]
 price_diff = current_price - data["opens"][0]
 diff_percent = (price_diff / data["opens"][0]) * 100
@@ -101,68 +108,73 @@ st.divider()
 
 # 4. Ansichten
 if "Chart" in view_mode:
-    st.subheader(f"📈 Candlestick Chart — {selected_market}")
-    
-    fig_candle = go.Figure(data=[go.Candlestick(
-        x=data["times"],
-        open=data["opens"],
-        high=data["highs"],
-        low=data["lows"],
-        close=data["closes"]
-    )])
-    
-    fig_candle.update_layout(
-        template="plotly_dark",
-        title=f"Echtzeit-Kursverlauf ({selected_market})",
-        xaxis_rangeslider_visible=True,
-        dragmode='pan',  # Garantiert nur Verschieben, kein Zoom-Rechteck!
-        height=600,
-        margin=dict(l=20, r=50, b=20, t=50)
-    )
-    
-    fig_candle.update_yaxes(side="right", tickformat=",.2f", fixedrange=False)
-    fig_candle.update_xaxes(fixedrange=False)
-    
-    fig_candle.add_annotation(
-        text=f"{selected_market}: ${current_price:,.2f} ({diff_percent:+.2f}%)",
-        xref="paper", yref="paper",
-        x=0.98, y=0.95,
-        showarrow=False,
-        font=dict(size=16, color="orange", family="Arial Black"),
-        bgcolor="rgba(0,0,0,0.8)",
-        bordercolor="gray",
-        borderwidth=1
-    )
+    @st.fragment(run_every=1.0)
+    def render_live_candlestick():
+        cur_p = data["closes"][-1]
+        p_diff = cur_p - data["opens"][0]
+        p_pct = (p_diff / data["opens"][0]) * 100
 
-    # Entfernt alle Zoom-Box- und Auswahl-Tools aus der Toolbar
-    st.plotly_chart(
-        fig_candle, 
-        use_container_width=True, 
-        config={
-            'scrollZoom': True, 
-            'displayModeBar': True,
-            'modeBarButtonsToRemove': ['zoom2d', 'select2d', 'lasso2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d']
-        },
-        key="candlestick_final_v4"
-    )
-    st.caption("ℹ️ **TradingView-Modus:** Klicken & Ziehen verschiebt den Chart butterweich. Mausrad zum Zoomen.")
+        fig_candle = go.Figure(data=[go.Candlestick(
+            x=data["times"],
+            open=data["opens"],
+            high=data["highs"],
+            low=data["lows"],
+            close=data["closes"]
+        )])
+        
+        fig_candle.update_layout(
+            template="plotly_dark",
+            title=f"Echtzeit-Kursverlauf ({selected_market})",
+            xaxis_rangeslider_visible=True,
+            dragmode='pan',  # Nur Verschieben, kein Zoom-Rechteck
+            height=600,
+            margin=dict(l=20, r=50, b=20, t=50)
+        )
+        
+        fig_candle.update_yaxes(side="right", tickformat=",.2f", fixedrange=False)
+        fig_candle.update_xaxes(fixedrange=False)
+        
+        fig_candle.add_annotation(
+            text=f"{selected_market}: ${cur_p:,.2f} ({p_pct:+.2f}%)",
+            xref="paper", yref="paper",
+            x=0.98, y=0.95,
+            showarrow=False,
+            font=dict(size=16, color="orange", family="Arial Black"),
+            bgcolor="rgba(0,0,0,0.8)",
+            bordercolor="gray",
+            borderwidth=1
+        )
+
+        st.plotly_chart(
+            fig_candle, 
+            use_container_width=True, 
+            config={
+                'scrollZoom': True, 
+                'displayModeBar': True,
+                'modeBarButtonsToRemove': ['zoom2d', 'select2d', 'lasso2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d']
+            },
+            key="candlestick_live_feed"
+        )
+        st.caption("ℹ️ **Live-Feed Aktiv:** Der Chart aktualisiert sich sekündlich im Hintergrund. Klicken & Ziehen verschiebt die Ansicht.")
+
+    render_live_candlestick()
 
 else:
     st.subheader(f"🧊 3D Volatility Surface — {selected_market}")
     
-    # Robuste HTML/JS-Komponente mit String-Replace gegen jegliche Syntaxfehler
+    # Vollständig tiefschwarzer Hintergrund mit flüssiger, asymmetrischer Live-Animation
     raw_html = """
     <!DOCTYPE html>
     <html>
     <head>
         <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
         <style>
-            body { margin: 0; background: #0e1117; color: white; font-family: sans-serif; }
-            #plotly-div { width: 100%; height: 580px; }
+            body { margin: 0; background: #000000; color: white; font-family: sans-serif; }
+            #plotly-div { width: 100%; height: 580px; background: #000000; }
             .market-badge {
                 position: absolute; top: 10px; left: 15px; z-index: 100;
                 font-family: Arial Black, sans-serif; font-size: 16px; color: orange;
-                background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 4px;
+                background: rgba(0,0,0,0.9); padding: 5px 10px; border: 1px solid #333; border-radius: 4px;
             }
         </style>
     </head>
@@ -204,12 +216,15 @@ else:
 
             const layout = {
                 template: 'plotly_dark',
+                paper_bgcolor: '#000000',
+                plot_bgcolor: '#000000',
                 autosize: true,
                 margin: {l: 0, r: 0, b: 0, t: 0},
                 scene: {
-                    xaxis: {title: 'Strike Price (Skew)', backgroundcolor: 'black', gridcolor: '#333'},
-                    yaxis: {title: 'Time to Maturity', backgroundcolor: 'black', gridcolor: '#333'},
-                    zaxis: {title: 'Implied Volatility', range: [0.2, 3.2], backgroundcolor: 'black', gridcolor: '#333'},
+                    bgcolor: '#000000',
+                    xaxis: {title: 'Strike Price (Skew)', backgroundcolor: '#000000', gridcolor: '#222', zerolinecolor: '#444'},
+                    yaxis: {title: 'Time to Maturity', backgroundcolor: '#000000', gridcolor: '#222', zerolinecolor: '#444'},
+                    zaxis: {title: 'Implied Volatility', range: [0.2, 3.2], backgroundcolor: '#000000', gridcolor: '#222', zerolinecolor: '#444'},
                     camera: { eye: {x: 1.6, y: -1.6, z: 1.3} }
                 }
             };
@@ -260,4 +275,4 @@ else:
     )
     
     components.html(html_code, height=600)
-    st.caption("ℹ️ **Live 3D-Volatilität:** Läuft vollautomatisch, flüssig, asymmetrisch und ohne Button-Klicks. Du kannst das Modell jederzeit mit der Maus drehen.")
+    st.caption("ℹ️ **Tiefschwarzes 3D-Modell:** Läuft vollautomatisch, flüssig und asymmetrisch mit hohem Live-Volatilitäts-Feed.")
