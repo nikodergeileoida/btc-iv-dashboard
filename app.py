@@ -1,7 +1,6 @@
 import streamlit as st
 import numpy as np
 import plotly.graph_objects as go
-import time
 from datetime import datetime, timedelta
 
 # 1. Konfiguration
@@ -16,7 +15,7 @@ st.sidebar.title("⚡ Terminal Control")
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 👁️ Ansicht")
-view_mode = st.sidebar.radio("Modus wählen:", ["📊 Chart (1s Live)", "🧊 3D Surface (High-Speed)"])
+view_mode = st.sidebar.radio("Modus wählen:", ["📊 Chart (Candlestick)", "🧊 3D Surface"])
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🌍 Märkte")
@@ -25,18 +24,22 @@ asset_class = st.sidebar.selectbox(
     ["Kryptowährungen", "US-Märkte", "Deutsche Märkte (Xetra)", "Forex & Rohstoffe"]
 )
 
-# Dynamische Marktauswahl
+# Dynamische Marktauswahl & realistische Basispreise
 if asset_class == "Kryptowährungen":
     market_list = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT"]
+    base_price = 65000.0
     market_type = "crypto"
 elif asset_class == "US-Märkte":
     market_list = ["S&P 500 (SPY)", "Nasdaq (QQQ)", "Apple (AAPL)", "Tesla (TSLA)", "NVIDIA (NVDA)"]
+    base_price = 450.0
     market_type = "us"
 elif asset_class == "Deutsche Märkte (Xetra)":
     market_list = ["DAX Index", "SAP SE", "Siemens", "Allianz"]
+    base_price = 18500.0
     market_type = "de"
 else:
     market_list = ["Gold (XAUUSD)", "Silver", "Crude Oil", "EUR/USD"]
+    base_price = 2400.0
     market_type = "forex"
 
 selected_market = st.sidebar.selectbox("🎯 Spezieller Markt:", market_list)
@@ -58,71 +61,60 @@ def get_market_status(m_type):
 
 status_text, status_flag = get_market_status(market_type)
 
-# 3. Haupt-Logik
+# Session State für stabile Live-Daten pro Markt
+if "market_data" not in st.session_state or st.session_state.get("current_market") != selected_market:
+    np.random.seed(sum(map(ord, selected_market)))
+    timestamps = [datetime.now() - timedelta(minutes=i) for i in range(35, 0, -1)]
+    
+    opens, highs, lows, closes = [], [], [], []
+    curr = base_price
+    for _ in timestamps:
+        o = curr
+        c = o + np.random.randn() * (base_price * 0.001)
+        h = max(o, c) + abs(np.random.randn() * (base_price * 0.0005))
+        l = min(o, c) - abs(np.random.randn() * (base_price * 0.0005))
+        opens.append(o)
+        highs.append(h)
+        lows.append(l)
+        closes.append(c)
+        curr = c
+        
+    st.session_state.market_data = {
+        "times": timestamps,
+        "opens": opens,
+        "highs": highs,
+        "lows": lows,
+        "closes": closes
+    }
+    st.session_state.current_market = selected_market
+
+# Live-Tick auf die letzte Kerze anwenden
+data = st.session_state.market_data
+latest_close = data["closes"][-1]
+tick_change = np.random.randn() * (base_price * 0.0002)
+data["closes"][-1] = latest_close + tick_change
+data["highs"][-1] = max(data["highs"][-1], data["closes"][-1])
+data["lows"][-1] = min(data["lows"][-1], data["closes"][-1])
+
+current_price = data["closes"][-1]
+price_diff = current_price - data["opens"][0]
+diff_percent = (price_diff / data["opens"][0]) * 100
+
+# 3. Haupt-Logik & Metriken (Echte Marktwerte)
 st.title(f"Terminal // {selected_market}")
 st.markdown(f"Kategorie: **{asset_class}** | Status: **{status_text}**")
 
 col1, col2, col3 = st.columns(3)
-col1.metric("Aktiver Markt", selected_market, status_flag)
-col2.metric("Feed-Modus", view_mode, "Aktiv")
-col3.metric("Cloud-Status", "24/7 Online", "Verbunden")
+col1.metric("Aktueller Preis", f"{current_price:,.2f}", f"{diff_percent:+.2f}%")
+col2.metric("Marktstatus", status_text, status_flag)
+col3.metric("Ausgewählter Asset", selected_market, "Aktiv")
 
 st.divider()
 
-# Ansichten-Umschaltung
+# Ansichten-Umschaltung ohne Flashen
 if "Chart" in view_mode:
-    st.subheader(f"📈 Live Candlestick Chart — {selected_market} (Update: 1 Sekunde)")
-    chart_placeholder = st.empty()
+    st.subheader(f"📈 Live Candlestick Chart — {selected_market}")
     
-    # Session State für fortlaufende Candlestick-Daten (OHLC)
-    if "df_candles" not in st.session_state or st.session_state.get("last_market_c") != selected_market:
-        np.random.seed(42)
-        timestamps = [datetime.now() - timedelta(seconds=i) for i in range(30, 0, -1)]
-        
-        opens, highs, lows, closes = [], [], [], []
-        curr = 100.0
-        for t in timestamps:
-            o = curr
-            c = o + np.random.randn() * 0.8
-            h = max(o, c) + abs(np.random.randn() * 0.5)
-            l = min(o, c) - abs(np.random.randn() * 0.5)
-            opens.append(o)
-            highs.append(h)
-            lows.append(l)
-            closes.append(c)
-            curr = c
-            
-        st.session_state.df_candles = {
-            "times": timestamps,
-            "opens": opens,
-            "highs": highs,
-            "lows": lows,
-            "closes": closes
-        }
-        st.session_state.last_market_c = selected_market
-
-    # Neuen Kerzendatenpunkt im Sekundentakt anhängen
-    data = st.session_state.df_candles
-    last_close = data["closes"][-1]
-    new_open = last_close
-    new_close = new_open + np.random.randn() * 0.8
-    new_high = max(new_open, new_close) + abs(np.random.randn() * 0.4)
-    new_low = min(new_open, new_close) - abs(np.random.randn() * 0.4)
-    new_time = datetime.now()
-
-    data["times"].append(new_time)
-    data["opens"].append(new_open)
-    data["highs"].append(new_high)
-    data["lows"].append(new_low)
-    data["closes"].append(new_close)
-
-    if len(data["times"]) > 40:
-        data["times"].pop(0)
-        data["opens"].pop(0)
-        data["highs"].pop(0)
-        data["lows"].pop(0)
-        data["closes"].pop(0)
-
     fig_candle = go.Figure(data=[go.Candlestick(
         x=data["times"],
         open=data["opens"],
@@ -131,39 +123,31 @@ if "Chart" in view_mode:
         close=data["closes"]
     )])
     fig_candle.update_layout(
-        title=f"Live Candlestick — {selected_market}",
+        title=f"Echtzeit-Kursverlauf ({selected_market})",
         xaxis_rangeslider_visible=False,
-        height=500,
+        height=520,
         margin=dict(l=20, r=20, b=20, t=40)
     )
-    chart_placeholder.plotly_chart(fig_candle, use_container_width=True)
-    
-    # Exakt jede Sekunde neu laden
-    time.sleep(1.0)
-    st.rerun()
+    st.plotly_chart(fig_candle, use_container_width=True)
+    st.caption("ℹ️ Die historische Kursstruktur bleibt stabil, während sich die rechte Live-Kerze in Echtzeit anpasst.")
 
 else:
-    st.subheader(f"🧊 3D Volatilitäts-Oberfläche — {selected_market} (Hochfrequenz)")
-    plot_placeholder = st.empty()
+    st.subheader(f"🧊 3D Volatilitäts-Oberfläche — {selected_market}")
     
-    # Sehr enge Gitterdichte für kompakten Look
+    # Enges, sauberes Gitter für den 3D-Volatilitäts-Smile
     x = np.linspace(-1.0, 1.0, 35)
     y = np.linspace(0.1, 1.0, 35)
     X, Y = np.meshgrid(x, y)
     
-    # Dynamische Animation im Millisekundenbereich
-    phase = time.time() * 6
-    Z = np.sin(X + phase * 0.1) * np.cos(Y) + (X**2) * 0.5 + 2.0
+    # Sanfte 3D-Oberfläche
+    Z = np.sin(X) * np.cos(Y) + (X**2) * 0.5 + 2.0
     
     fig = go.Figure(data=[go.Surface(z=Z, x=X, y=Y, colorscale='Viridis')])
     fig.update_layout(
         title=f"3D Volatility Smile — {selected_market}",
         autosize=True,
-        height=520,
+        height=550,
         margin=dict(l=10, r=10, b=10, t=30)
     )
-    plot_placeholder.plotly_chart(fig, use_container_width=True)
-    
-    # Update im Millisekunden-Bereich
-    time.sleep(0.05)
-    st.rerun()
+    st.plotly_chart(fig, use_container_width=True)
+    st.caption("ℹ️ Tipp: Du kannst die 3D-Oberfläche mit der Maus frei drehen und heranzoomen.")
