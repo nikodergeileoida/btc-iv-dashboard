@@ -142,7 +142,7 @@ else:
     def render_3d_surface():
         st.subheader(f"🧊 3D Surface Chart — {selected_market}")
         
-        # Exakte Gitterstruktur von -3 bis 3 wie im Screenshot
+        # Exakte Gitterstruktur von -3 bis 3
         x = np.linspace(-3.0, 3.0, 40)
         y = np.linspace(-3.0, 3.0, 40)
         X, Y = np.meshgrid(x, y)
@@ -165,14 +165,13 @@ else:
             scene=dict(
                 xaxis_title='Strike Price',
                 yaxis_title='Time',
-                zaxis=dict(title=''),
+                zaxis=dict(title='', backgroundcolor="black", gridcolor="gray"),
                 xaxis=dict(backgroundcolor="black", gridcolor="gray"),
-                yaxis=dict(backgroundcolor="black", gridcolor="gray"),
-                zaxis_dict=dict(backgroundcolor="black", gridcolor="gray")
+                yaxis=dict(backgroundcolor="black", gridcolor="gray")
             )
         )
         
-        # Preis-Anzeige exakt wie im Screenshot oben links in Orange
+        # Preis-Anzeige oben links in Orange
         fig.add_annotation(
             text=f"{selected_market}: ${current_price:,.2f}",
             xref="paper", yref="paper",
