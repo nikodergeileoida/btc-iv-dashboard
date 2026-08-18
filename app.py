@@ -1,6 +1,7 @@
 import streamlit as st
 import numpy as np
 import plotly.graph_objects as go
+import streamlit.components.v1 as components
 from datetime import datetime, timedelta
 
 # 1. Konfiguration
@@ -114,7 +115,7 @@ if "Chart" in view_mode:
         template="plotly_dark",
         title=f"Echtzeit-Kursverlauf ({selected_market})",
         xaxis_rangeslider_visible=True,
-        dragmode='pan',  # Exakt wie TradingView: Ziehen verschiebt den Chart, kein Zoom-Kasten!
+        dragmode='pan',  # Nur Verschieben beim Halten, kein Zoom-Kasten!
         height=600,
         margin=dict(l=20, r=50, b=20, t=50)
     )
@@ -133,91 +134,124 @@ if "Chart" in view_mode:
         borderwidth=1
     )
 
+    # Entfernt Zoom-Box-Tools aus der Toolbar komplett
     st.plotly_chart(
         fig_candle, 
         use_container_width=True, 
-        config={'scrollZoom': True, 'displayModeBar': True},
-        key="candlestick_final_v2"
+        config={
+            'scrollZoom': True, 
+            'displayModeBar': True,
+            'modeBarButtonsToRemove': ['zoom2d', 'select2d', 'lasso2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d']
+        },
+        key="candlestick_final_v3"
     )
-    st.caption("ℹ️ **TradingView-Modus:** Klicken & Ziehen verschiebt den Chart. Mausrad zoomt. Ziehe direkt an den Skalenzahlen zum Stretchen.")
+    st.caption("ℹ️ **TradingView-Modus:** Klicken & Ziehen verschiebt den Chart butterweich. Mausrad zum Zoomen.")
 
 else:
     st.subheader(f"🧊 3D Volatility Surface — {selected_market}")
     
-    # Generierung von Client-Side Frames für flüssige, flackerfreie Bewegung
-    x = np.linspace(-3.0, 3.0, 30)
-    y = np.linspace(-3.0, 3.0, 30)
-    X, Y = np.meshgrid(x, y)
-    
-    frames = []
-    num_frames = 25
-    for i in range(num_frames):
-        phase = i * (2 * np.pi / num_frames)
-        R = np.sqrt(X**2 + Y**2)
-        Z = 0.5 + 0.1 * (X**2 + Y**2) + 0.15 * np.cos(R - phase)
-        Z = np.maximum(Z, 0.05)
-        frames.append(go.Frame(data=[go.Surface(z=Z, x=X, y=Y)], name=f"f{i}"))
+    # Durchgehende, asymmetrische High-Volatility Live-Animation per JS Component
+    html_code = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+        <style>
+            body {{ margin: 0; background: #0e1117; color: white; font-family: sans-serif; }}
+            #plotly-div {{ width: 100%; height: 580px; }}
+            .market-badge {{
+                position: absolute; top: 10px; left: 15px; z-index: 100;
+                font-family: Arial Black, sans-serif; font-size: 16px; color: orange;
+                background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 4px;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="market-badge">{selected_market}: ${current_price:,.2f} ({diff_percent:+.2f}%)</div>
+        <div id="plotly-div"></div>
+        <script>
+            const n = 40;
+            let x = [], y = [];
+            for(let i=0; i<n; i++) {{
+                x.push(-3 + (i / (n-1)) * 6);
+                y.push(-3 + (i / (n-1)) * 6);
+            }}
+            
+            let X = [], Y = [], Z0 = [];
+            for (let i = 0; i < n; i++) {{
+                let rowX = [], rowY = [], rowZ = [];
+                for (let j = 0; j < n; j++) {{
+                    let xi = x[j];
+                    let yj = y[i];
+                    rowX.push(xi);
+                    rowY.push(yj);
+                    let skew = 0.3 * xi;
+                    let smile = 0.25 * (xi * xi) + 0.15 * (yj * yj);
+                    rowZ.push(Math.max(0.2, 1.2 + smile - skew));
+                }}
+                X.push(rowX);
+                Y.push(rowY);
+                Z0.push(rowZ);
+            }}
 
-    R0 = np.sqrt(X**2 + Y**2)
-    Z0 = 0.5 + 0.1 * (X**2 + Y**2) + 0.15 * np.cos(R0)
-    Z0 = np.maximum(Z0, 0.05)
+            const data = [{{
+                z: Z0,
+                x: X,
+                y: Y,
+                type: 'surface',
+                colorscale: 'Viridis'
+            }}];
 
-    fig_3d = go.Figure(
-        data=[go.Surface(z=Z0, x=X, y=Y, colorscale='Viridis')],
-        frames=frames
-    )
+            const layout = {{
+                template: 'plotly_dark',
+                autosize: true,
+                margin: {{l: 0, r: 0, b: 0, t: 0}},
+                scene: {{
+                    xaxis: {{title: 'Strike Price (Skew)', backgroundcolor: 'black', gridcolor: '#333'}},
+                    yaxis: {{title: 'Time to Maturity', backgroundcolor: 'black', gridcolor: '#333'}},
+                    zaxis: {{title: 'Implied Volatility', range: [0.2, 3.2], backgroundcolor: 'black', gridcolor: '#333'}},
+                    camera: {{ eye: {{x: 1.6, y: -1.6, z: 1.3}} }}
+                }}
+            }};
+
+            Plotly.newPlot('plotly-div', data, layout, {{responsive: true, scrollZoom: true, displayModeBar: true}});
+
+            let frame = 0;
+            function runAnimation() {{
+                frame += 0.05;
+                let Z = [];
+                for (let i = 0; i < n; i++) {{
+                    let rowZ = [];
+                    for (let j = 0; j < n; j++) {{
+                        let xi = X[i][j];
+                        let yj = Y[i][j];
+                        // Asymmetrischer Volatility-Smile mit hoher Amplitude & Dynamik
+                        let skew = 0.3 * xi;
+                        let smile = 0.28 * (xi * xi) + 0.18 * (yj * yj);
+                        let wave = 0.4 * Math.sin(xi * 0.9 - frame) * Math.cos(yj * 0.7 + frame);
+                        let z = 1.4 + smile - skew + wave;
+                        rowZ.push(Math.max(0.2, z));
+                    }}
+                    Z.push(rowZ);
+                }}
+                
+                Plotly.animate('plotly-div', {{
+                    data: [{{z: Z}}],
+                    traces: [0],
+                    layout: {{}}
+                }}, {{
+                    transition: {{duration: 40, easing: 'linear'}},
+                    frame: {{duration: 40, redraw: true}}
+                }});
+                
+                requestAnimationFrame(runAnimation);
+            }
+
+            requestAnimationFrame(runAnimation);
+        </script>
+    </body>
+    </html>
+    """
     
-    fig_3d.update_layout(
-        template="plotly_dark",
-        height=600,
-        margin=dict(l=10, r=10, b=10, t=30),
-        updatemenus=[{
-            "type": "buttons",
-            "showactive": False,
-            "x": 0.05,
-            "y": 1.12,
-            "buttons": [{
-                "label": "▶ Animation starten",
-                "method": "animate",
-                "args": [
-                    None,
-                    {
-                        "frame": {"duration": 60, "redraw": True},
-                        "fromcurrent": True,
-                        "mode": "immediate",
-                        "transition": {"duration": 60, "easing": "linear"},
-                        "loop": True
-                    }
-                ]
-            }, {
-                "label": "⏸ Pause",
-                "method": "animate",
-                "args": [[None], {"frame": {"duration": 0, "redraw": False}, "mode": "immediate"}]
-            }]
-        }],
-        scene=dict(
-            xaxis_title='Strike Price',
-            yaxis_title='Time',
-            zaxis_title='Volatility',
-            zaxis=dict(range=[0, 1.5], backgroundcolor="black", gridcolor="gray"),
-            xaxis=dict(backgroundcolor="black", gridcolor="gray"),
-            yaxis=dict(backgroundcolor="black", gridcolor="gray"),
-            camera=dict(eye=dict(x=1.5, y=-1.5, z=1.2))
-        )
-    )
-    
-    fig_3d.add_annotation(
-        text=f"{selected_market}: ${current_price:,.2f} ({diff_percent:+.2f}%)",
-        xref="paper", yref="paper",
-        x=0.02, y=0.92,
-        showarrow=False,
-        font=dict(size=18, color="orange", family="Arial Black")
-    )
-    
-    st.plotly_chart(
-        fig_3d, 
-        use_container_width=True,
-        config={'scrollZoom': True, 'displayModeBar': True},
-        key="surface_3d_final_v2"
-    )
-    st.caption("ℹ️ **3D-Modell:** Klicke einmal auf **▶ Animation starten**, damit sich die Oberfläche permanent und flackerfrei bewegt. Du kannst die Ansicht währenddessen jederzeit mit der Maus frei drehen und zoomen!")
+    components.html(html_code, height=600)
+    st.caption("ℹ️ **Live 3D-Volatilität:** Läuft vollautomatisch, flüssig, asymmetrisch und ohne Button-Klicks. Du kannst das Modell jederzeit mit der Maus drehen.")
