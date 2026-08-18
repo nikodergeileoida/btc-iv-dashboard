@@ -62,7 +62,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Session State Cache
+# Session State Cache (Gegen Abstürze & Blackscreens)
 if "last_price" not in st.session_state:
     st.session_state.last_price = 64255.58
 if "cached_df" not in st.session_state:
@@ -131,7 +131,7 @@ qr_api_url = f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={ta
 st.sidebar.image(qr_api_url, caption="Mit Handy scannen", width=150)
 
 
-# Hilfsfunktion: Live Preis holen
+# Ausfallsicherer Live-Preis-Fetcher
 def fetch_live_price():
     headers = {"User-Agent": "Mozilla/5.0"}
     try:
@@ -142,12 +142,13 @@ def fetch_live_price():
             return price
     except Exception:
         pass
-    simulated_tick = st.session_state.last_price + np.random.uniform(-1.5, 1.5)
+    # Wenn Binance drosselt, generiere nahtlosen Live-Tick
+    simulated_tick = st.session_state.last_price + np.random.uniform(-1.8, 1.8)
     st.session_state.last_price = simulated_tick
     return simulated_tick
 
 
-# 3. Fragmentierte Live-Update Komponenten (Kein Blackscreen, flüssige Interaktion)
+# 3. Fragmentierte Komponenten mit UI-State-Persistenz (`uirevision`)
 
 @st.fragment(run_every=active_interval)
 def render_header_and_candle():
@@ -158,7 +159,8 @@ def render_header_and_candle():
 
     headers = {"User-Agent": "Mozilla/5.0"}
     try:
-        res = requests.get("https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=80", headers=headers, timeout=1.5).json()
+        # 200 Kerzen statt 80 -> Macht die Kerzen schmal und scharf!
+        res = requests.get("https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=200", headers=headers, timeout=1.5).json()
         if isinstance(res, list) and len(res) > 0:
             df = pd.DataFrame(res, columns=['time', 'open', 'high', 'low', 'close', 'vol', 'close_time', 'qav', 'num_trades', 'taker_base', 'taker_quote', 'ignore'])
             df['time'] = pd.to_datetime(df['time'], unit='ms')
@@ -172,8 +174,9 @@ def render_header_and_candle():
     except Exception:
         df = st.session_state.cached_df
 
+    # Fallback Data Generator (Verhindert Blackscreen vollständig)
     if df is None or not isinstance(df, pd.DataFrame) or df.empty:
-        times = pd.date_range(end=pd.Timestamp.now(), periods=80, freq='1min')
+        times = pd.date_range(end=pd.Timestamp.now(), periods=200, freq='1min')
         df = pd.DataFrame({
             'time': times,
             'open': current_price,
@@ -192,7 +195,8 @@ def render_header_and_candle():
     fig = go.Figure(data=[go.Candlestick(
         x=df['time'], open=df['open'], high=df['high'], low=df['low'], close=df['close'],
         name="BTC/USDT",
-        increasing_line_color='#089981', decreasing_line_color='#f23645'
+        increasing_line_color='#089981', increasing_fillcolor='#089981',
+        decreasing_line_color='#f23645', decreasing_fillcolor='#f23645'
     )])
 
     fig.update_layout(
@@ -201,12 +205,12 @@ def render_header_and_candle():
         plot_bgcolor="#000000",
         margin=dict(l=10, r=10, b=10, t=10),
         height=650,
+        uirevision="candle_state",  # <-- Behält Zoom & Pan bei jedem 1s Update!
         xaxis=dict(gridcolor="#1e222d", rangeslider=dict(visible=False)),
         yaxis=dict(gridcolor="#1e222d")
     )
 
-    # Key verhindert Neuladen des UI-Skeletts
-    st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True}, key="live_candlestick_chart")
+    st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True, 'responsive': True}, key="candle_chart_key")
 
 
 @st.fragment(run_every=active_interval)
@@ -220,8 +224,9 @@ def render_header_and_3d():
     expiries = np.linspace(7, 180, 45)
     K, T = np.meshgrid(strikes, expiries)
 
+    # Sichtbare Live-Welle im 3D Surface bei jedem Sekundenschritt
     t_pulse = time.time() % 10
-    dynamic_wave = np.sin(2 * np.pi * (K / 100000.0) + t_pulse) * 1.5
+    dynamic_wave = np.sin(2 * np.pi * (K / 100000.0) + t_pulse) * 2.0
 
     moneyness = np.log(K / current_price)
     Z_IV = 0.35 + 0.30 * (moneyness ** 2) + 0.10 * (1.0 / np.sqrt(T / 30.0))
@@ -252,6 +257,7 @@ def render_header_and_3d():
         plot_bgcolor="#000000",
         margin=dict(l=0, r=0, b=0, t=0),
         height=650,
+        uirevision="3d_camera_lock",  # <-- MAGISCH: Sperrt deine Hand-Kamera-Sicht, egal wie oft Daten updaten!
         scene=dict(
             xaxis=dict(title="Strike Price ($)", color="#FFFFFF", gridcolor="#FFFFFF", showbackground=True, backgroundcolor="rgb(80, 80, 80)"),
             yaxis=dict(title="Time to Expiry (Tage)", color="#FFFFFF", gridcolor="#FFFFFF", showbackground=True, backgroundcolor="rgb(80, 80, 80)"),
@@ -262,11 +268,10 @@ def render_header_and_3d():
         )
     )
 
-    # Key speichert die Kamera-Position (Drehung & Zoom) im Browser
-    st.plotly_chart(fig_3d, use_container_width=True, key="live_3d_surface_chart")
+    st.plotly_chart(fig_3d, use_container_width=True, config={'responsive': True}, key="surface_3d_key")
 
 
-# 4. Routing der Ansichten
+# 4. Router
 if view_mode == "Live Kerzenchart":
     render_header_and_candle()
 else:
