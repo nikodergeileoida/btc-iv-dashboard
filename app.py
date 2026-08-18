@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 import time
 
-# Versuche Scipy für HD-Glättung der 3D-Fläche zu laden
+# Versuche SciPy für Ultra-HD Interpolation der 3D-Fläche zu laden
 try:
     from scipy.ndimage import zoom
     HAS_SCIPY = True
@@ -14,21 +14,47 @@ except ImportError:
     HAS_SCIPY = False
 
 # 1. Page Config & Ultra Dark Cyberpunk Theme
-st.set_page_config(page_title="BTC Cyber Terminal v5 HD", layout="wide")
+st.set_page_config(page_title="BTC Cyber Terminal v7 EXTREME", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
     <style>
+        /* Haupt-Hintergrund */
         .stApp {
             background-color: #020408 !important;
             color: #00F3FF !important;
         }
-        header, footer { visibility: hidden; }
+        
+        /* Footer ausblenden, Header transparent lassen für den Sidebar-Pfeil */
+        footer { visibility: hidden; }
+        header[data-testid="stHeader"] {
+            background-color: transparent !important;
+            z-index: 99999 !important;
+        }
+
+        /* SIDEBAR TOGGLE BUTTON REPARATUR:
+           Macht den Aufklapp-Pfeil oben links immer sichtbar & leuchtend */
+        [data-testid="stSidebarCollapsedControl"], [data-testid="stSidebarCollapseButton"] {
+            color: #00F3FF !important;
+            background-color: #071018 !important;
+            border: 1px solid #00F3FF !important;
+            border-radius: 6px !important;
+            box-shadow: 0 0 12px rgba(0, 243, 255, 0.6) !important;
+            margin: 8px !important;
+        }
+        [data-testid="stSidebarCollapsedControl"]:hover, [data-testid="stSidebarCollapseButton"]:hover {
+            background-color: #00F3FF !important;
+            color: #020408 !important;
+            box-shadow: 0 0 20px #00F3FF !important;
+        }
+
         .block-container {
-            padding-top: 0.5rem;
+            padding-top: 1rem;
             padding-bottom: 0rem;
             padding-left: 0.8rem;
             padding-right: 0.8rem;
         }
+        
+        /* Metric Cards Style */
         .metric-card {
             background: linear-gradient(145deg, rgba(10, 20, 32, 0.9), rgba(4, 8, 15, 0.95));
             border: 1px solid rgba(0, 243, 255, 0.3);
@@ -40,6 +66,7 @@ st.markdown("""
         .metric-title { font-size: 0.75rem; color: #507090; text-transform: uppercase; letter-spacing: 1px; }
         .metric-value { font-size: 1.4rem; font-weight: 800; color: #00F3FF; text-shadow: 0 0 8px rgba(0,243,255,0.4); }
 
+        /* Paywall & Admin Boxen */
         .paywall-box {
             background: linear-gradient(135deg, rgba(35, 8, 20, 0.95) 0%, rgba(15, 3, 10, 0.95) 100%);
             border: 1px solid #FF0055;
@@ -51,7 +78,6 @@ st.markdown("""
             margin-bottom: 15px;
         }
         
-        /* Neon Pulsieren für den Admin Modus */
         @keyframes adminGlow {
             0% { box-shadow: 0 0 10px #00FF66; border-color: #00FF66; }
             50% { box-shadow: 0 0 25px #00FF66, 0 0 10px #00F3FF; border-color: #00F3FF; }
@@ -140,16 +166,16 @@ components.html(btc_header_html, height=90)
 st.sidebar.markdown("### ⚙️ Terminal Navigation")
 view_mode = st.sidebar.radio(
     "Visualisierung wählen:", 
-    ["3D HD Modell (Surface / Grid)", "Live Kerzenchart (100% Fix)", "Put/Call Skew Radar", "2D Heatmap", "Volatility Smiles"]
+    ["3D ULTRA HD Modell", "Live Kerzenchart", "Put/Call Skew Radar", "2D Heatmap", "Volatility Smiles"]
 )
 
 # 3D Optionen
-if view_mode == "3D HD Modell (Surface / Grid)":
+if view_mode == "3D ULTRA HD Modell":
     st.sidebar.markdown("---")
-    st.sidebar.markdown("### 🧊 3D High-Detail Modus")
+    st.sidebar.markdown("### 🧊 3D Mesh Optionen")
     three_d_style = st.sidebar.radio(
         "3D Stil wählen:",
-        ["High-Detail Surface (Detaillierte Fläche)", "Wireframe Grid (Neon Net)"]
+        ["ULTRA HD Surface (Extrem Detaillierte Fläche)", "Wireframe Grid (Neon Net)"]
     )
     colorscale_choice = st.sidebar.selectbox(
         "Farb-Palette:",
@@ -203,6 +229,7 @@ if is_admin:
     """
     components.html(admin_confetti_js, height=0)
 
+# Trade / Kauf Simulator Button
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🛒 Trade & Kauf Simulator")
 if st.sidebar.button("🎉 Kauf / Order Testen"):
@@ -218,6 +245,23 @@ if st.sidebar.button("🎉 Kauf / Order Testen"):
     """
     components.html(buy_animation_js, height=120)
 
+# --- NEON CYBERPUNK QR CODE GENERATOR ---
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 📱 Mobile Sync (QR-Code)")
+
+url_mode = st.sidebar.radio("URL Typ:", ["WLAN (Lokales Netz)", "Cloud / Tunnel URL"])
+if url_mode == "WLAN (Lokales Netz)":
+    default_target = "http://192.168.1.50:8501" # Deine Terminal Network-URL
+else:
+    default_target = "https://deine-app.streamlit.app"
+
+target_url = st.sidebar.text_input("Ziel-URL für QR-Code:", value=default_target)
+
+if target_url:
+    # Generiert QR-Code im Cyberpunk-Neon-Look (Cyan-Code auf tiefdunklem Hintergrund)
+    qr_cyber_api = f"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={target_url}&color=00F3FF&bgcolor=020408"
+    st.sidebar.image(qr_cyber_api, caption="📱 Scan mit Smartphone-Kamera", use_container_width=True)
+
 # 5. Data Fetcher für Deribit Option IV
 @st.cache_data(ttl=10)
 def get_deribit_iv_data():
@@ -228,8 +272,8 @@ def get_deribit_iv_data():
     except Exception:
         return []
 
-# 6. Kerzenchart Render (Rein Clientseitig via Binance API - Lädt IMMER!)
-if view_mode == "Live Kerzenchart (100% Fix)":
+# 6. Live Kerzenchart Render (Binance Stream - Lädt garantiert immer!)
+if view_mode == "Live Kerzenchart":
     binance_candlestick_html = """
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <div id="plotly-candle" style="width:100%; height:680px;"></div>
@@ -272,12 +316,12 @@ if view_mode == "Live Kerzenchart (100% Fix)":
         }
 
         updateLiveCandles();
-        setInterval(updateLiveCandles, 2000); // Aktualisierung alle 2 Sekunden
+        setInterval(updateLiveCandles, 2000);
     </script>
     """
     components.html(binance_candlestick_html, height=700)
 
-# 7. Options & Detaillierte 3D Render Engine
+# 7. Options & EXTREM Detaillierte 3D Render Engine
 else:
     raw_data = get_deribit_iv_data()
     if raw_data:
@@ -299,9 +343,9 @@ else:
             expiries = pivot.columns.tolist()
             z_values = pivot.values
 
-            # Interpolation für HD-Glättung der 3D-Fläche
+            # EXTREM HOHE DETAILED INTERPOLATION (6x Zoom = ~100x100 High Density Grid)
             if HAS_SCIPY and len(strikes) > 2 and len(expiries) > 2:
-                z_dense = zoom(z_values, (2.5, 2.5), order=3) # 2.5x höhere Dichte
+                z_dense = zoom(z_values, (6.0, 6.0), order=3)
                 strikes_dense = np.linspace(strikes[0], strikes[-1], z_dense.shape[0]).tolist()
                 expiries_dense = []
                 for idx in np.linspace(0, len(expiries) - 1, z_dense.shape[1]):
@@ -322,8 +366,8 @@ else:
             with m4:
                 st.markdown(f'<div class="metric-card"><div class="metric-title">Options Kontrakte</div><div class="metric-value">{len(df)}</div></div>', unsafe_allow_html=True)
 
-            # 3D MODEL RENDER
-            if view_mode == "3D HD Modell (Surface / Grid)":
+            # 3D ULTRA HD MODEL RENDER
+            if view_mode == "3D ULTRA HD Modell":
                 rotate_js = """
                 var r = 1.35; var theta = 0;
                 setInterval(function(){
@@ -342,13 +386,13 @@ else:
                         },
                     """
                     colorscale_script = "colorscale: 'Electric',"
-                else: # High Detail Surface
+                else: # EXTREM Detaillierte Surface mit Glanz-Reflexionen
                     surface_config = "hidesurface: false,"
                     contours_config = """
                         contours: {
-                            z: { show: true, usecolormap: true, highlightcolor: "#00F3FF", project: { z: true } },
-                            x: { show: true, color: "rgba(0,243,255,0.1)", width: 1 },
-                            y: { show: true, color: "rgba(255,0,85,0.1)", width: 1 }
+                            z: { show: true, usecolormap: true, highlightcolor: "#00FF66", project: { z: true }, width: 2 },
+                            x: { show: true, color: "rgba(0, 243, 255, 0.25)", width: 1 },
+                            y: { show: true, color: "rgba(255, 0, 85, 0.25)", width: 1 }
                         },
                     """
                     colorscale_script = f"colorscale: '{colorscale_choice}',"
@@ -365,7 +409,13 @@ else:
                         {surface_config}
                         {colorscale_script}
                         {contours_config}
-                        lighting: {{ ambient: 0.6, diffuse: 0.9, specular: 1.8, roughness: 0.1 }}
+                        lighting: {{
+                            ambient: 0.4,
+                            diffuse: 0.8,
+                            fresnel: 0.5,
+                            specular: 2.0,
+                            roughness: 0.05
+                        }}
                     }}];
                     var layout = {{
                         paper_bgcolor: '#020408',
@@ -475,17 +525,3 @@ else:
 # 8. Auto Refresh Loop
 time.sleep(30)
 st.rerun()
-# --- QR-Code Generator in der Sidebar ---
-st.sidebar.markdown("---")
-st.sidebar.markdown("### 📱 Handy-Zugriff (QR-Code)")
-
-# Hier gibst du deine Network- oder Tunnel-URL ein
-user_url = st.sidebar.text_input(
-    "Deine App-URL:", 
-    value="http://192.168.1.50:8501"  # Ersetze dies durch deine Network-URL aus dem Terminal
-)
-
-if user_url:
-    # Generiert automatisch das QR-Code Bild über eine kostenlose API
-    qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={user_url}"
-    st.sidebar.image(qr_code_url, caption="Mit der Handy-Kamera scannen", width=180)
