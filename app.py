@@ -60,7 +60,7 @@ html_code = f"""
         }}
 
         // ====================================================
-        // 1. TRADINGVIEW NATIVE CANDLESTICK ENGINE (SCHWARZER BG GEFIXT)
+        // 1. TRADINGVIEW NATIVE CANDLESTICK ENGINE (SCHWARZER BG)
         // ====================================================
         if (viewMode.includes("Kerzenchart")) {{
             const chart = LightweightCharts.createChart(container, {{
@@ -138,7 +138,7 @@ html_code = f"""
             connectCandleWS();
 
         // ====================================================
-        // 2. ULTRA-LIVE 3D CHART ENGINE
+        // 2. ULTRA-LIVE 3D CHART ENGINE (FREIE KAMERA-STEUERUNG)
         // ====================================================
         }} else {{
             let tOffset = 0;
@@ -181,7 +181,6 @@ html_code = f"""
                         paper_bgcolor: '#000000',
                         plot_bgcolor: '#000000',
                         margin: {{ l: 0, r: 0, b: 0, t: 0 }},
-                        uirevision: 'persistent_camera_lock',
                         scene: {{
                             xaxis: {{ title: 'Strike ($)', gridcolor: '#222222', color: '#888' }},
                             yaxis: {{ title: 'Days', gridcolor: '#222222', color: '#888' }},
@@ -190,28 +189,18 @@ html_code = f"""
                         }}
                     }};
 
+                    // Initiales Plotly Setup
                     Plotly.newPlot(container, [trace], layout, {{ responsive: true, displayModeBar: false }});
 
+                    // Butterweicher Animations-Loop mit Plotly.restyle (Berührt die Kamera NICHT -> Volle Drehfreiheit!)
                     function animate3D() {{
                         tOffset += 0.015;
                         let surf = animSurf(currentPrice, tOffset);
                         
-                        Plotly.react(container, [{{
-                            x: surf.x, y: surf.y, z: surf.z,
-                            type: 'surface',
-                            colorscale: [[0.0, '#0D0887'], [0.35, '#6A00A8'], [0.70, '#B12A90'], [1.0, '#FCA636']],
-                            showscale: true
-                        }}], {{
-                            paper_bgcolor: '#000000',
-                            plot_bgcolor: '#000000',
-                            margin: {{ l: 0, r: 0, b: 0, t: 0 }},
-                            uirevision: 'persistent_camera_lock',
-                            scene: {{
-                                xaxis: {{ title: 'Strike ($)', gridcolor: '#222222', color: '#888' }},
-                                yaxis: {{ title: 'Days', gridcolor: '#222222', color: '#888' }},
-                                zaxis: {{ title: 'IV (%)', gridcolor: '#222222', color: '#888' }}
-                            }}
-                        }}, {{ responsive: true, displayModeBar: false }});
+                        Plotly.restyle(container, {{
+                            z: [surf.z],
+                            x: [surf.x]
+                        }}, [0]);
 
                         requestAnimationFrame(animate3D);
                     }}
