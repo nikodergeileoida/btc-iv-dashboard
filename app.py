@@ -115,7 +115,7 @@ if "Chart" in view_mode:
         template="plotly_dark",
         title=f"Echtzeit-Kursverlauf ({selected_market})",
         xaxis_rangeslider_visible=True,
-        dragmode='pan',  # Nur Verschieben beim Halten, kein Zoom-Kasten!
+        dragmode='pan',  # Garantiert nur Verschieben, kein Zoom-Rechteck!
         height=600,
         margin=dict(l=20, r=50, b=20, t=50)
     )
@@ -134,115 +134,114 @@ if "Chart" in view_mode:
         borderwidth=1
     )
 
-    # Entfernt Zoom-Box-Tools aus der Toolbar komplett
+    # Entfernt alle Zoom-Box- und Auswahl-Tools aus der Toolbar
     st.plotly_chart(
         fig_candle, 
         use_container_width=True, 
         config={
             'scrollZoom': True, 
             'displayModeBar': True,
-            'modeBarButtonsToRemove': ['zoom2d', 'select2d', 'lasso2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d']
+            'modeBarButtonsToRemove': ['zoom2d', 'select2d', 'lasso2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d']
         },
-        key="candlestick_final_v3"
+        key="candlestick_final_v4"
     )
     st.caption("ℹ️ **TradingView-Modus:** Klicken & Ziehen verschiebt den Chart butterweich. Mausrad zum Zoomen.")
 
 else:
     st.subheader(f"🧊 3D Volatility Surface — {selected_market}")
     
-    # Durchgehende, asymmetrische High-Volatility Live-Animation per JS Component
-    html_code = f"""
+    # Robuste HTML/JS-Komponente mit String-Replace gegen jegliche Syntaxfehler
+    raw_html = """
     <!DOCTYPE html>
     <html>
     <head>
         <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
         <style>
-            body {{ margin: 0; background: #0e1117; color: white; font-family: sans-serif; }}
-            #plotly-div {{ width: 100%; height: 580px; }}
-            .market-badge {{
+            body { margin: 0; background: #0e1117; color: white; font-family: sans-serif; }
+            #plotly-div { width: 100%; height: 580px; }
+            .market-badge {
                 position: absolute; top: 10px; left: 15px; z-index: 100;
                 font-family: Arial Black, sans-serif; font-size: 16px; color: orange;
                 background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 4px;
-            }}
+            }
         </style>
     </head>
     <body>
-        <div class="market-badge">{selected_market}: ${current_price:,.2f} ({diff_percent:+.2f}%)</div>
+        <div class="market-badge">MARKET_NAME: $PRICE_VAL (PCT_VAL)</div>
         <div id="plotly-div"></div>
         <script>
             const n = 40;
             let x = [], y = [];
-            for(let i=0; i<n; i++) {{
+            for(let i=0; i<n; i++) {
                 x.push(-3 + (i / (n-1)) * 6);
                 y.push(-3 + (i / (n-1)) * 6);
-            }}
+            }
             
             let X = [], Y = [], Z0 = [];
-            for (let i = 0; i < n; i++) {{
+            for (let i = 0; i < n; i++) {
                 let rowX = [], rowY = [], rowZ = [];
-                for (let j = 0; j < n; j++) {{
+                for (let j = 0; j < n; j++) {
                     let xi = x[j];
                     let yj = y[i];
                     rowX.push(xi);
                     rowY.push(yj);
                     let skew = 0.3 * xi;
-                    let smile = 0.25 * (xi * xi) + 0.15 * (yj * yj);
-                    rowZ.push(Math.max(0.2, 1.2 + smile - skew));
-                }}
+                    let smile = 0.28 * (xi * xi) + 0.18 * (yj * yj);
+                    rowZ.push(Math.max(0.2, 1.4 + smile - skew));
+                }
                 X.push(rowX);
                 Y.push(rowY);
                 Z0.push(rowZ);
-            }}
+            }
 
-            const data = [{{
+            const data = [{
                 z: Z0,
                 x: X,
                 y: Y,
                 type: 'surface',
                 colorscale: 'Viridis'
-            }}];
+            }];
 
-            const layout = {{
+            const layout = {
                 template: 'plotly_dark',
                 autosize: true,
-                margin: {{l: 0, r: 0, b: 0, t: 0}},
-                scene: {{
-                    xaxis: {{title: 'Strike Price (Skew)', backgroundcolor: 'black', gridcolor: '#333'}},
-                    yaxis: {{title: 'Time to Maturity', backgroundcolor: 'black', gridcolor: '#333'}},
-                    zaxis: {{title: 'Implied Volatility', range: [0.2, 3.2], backgroundcolor: 'black', gridcolor: '#333'}},
-                    camera: {{ eye: {{x: 1.6, y: -1.6, z: 1.3}} }}
-                }}
-            }};
+                margin: {l: 0, r: 0, b: 0, t: 0},
+                scene: {
+                    xaxis: {title: 'Strike Price (Skew)', backgroundcolor: 'black', gridcolor: '#333'},
+                    yaxis: {title: 'Time to Maturity', backgroundcolor: 'black', gridcolor: '#333'},
+                    zaxis: {title: 'Implied Volatility', range: [0.2, 3.2], backgroundcolor: 'black', gridcolor: '#333'},
+                    camera: { eye: {x: 1.6, y: -1.6, z: 1.3} }
+                }
+            };
 
-            Plotly.newPlot('plotly-div', data, layout, {{responsive: true, scrollZoom: true, displayModeBar: true}});
+            Plotly.newPlot('plotly-div', data, layout, {responsive: true, scrollZoom: true, displayModeBar: true});
 
             let frame = 0;
-            function runAnimation() {{
+            function runAnimation() {
                 frame += 0.05;
                 let Z = [];
-                for (let i = 0; i < n; i++) {{
+                for (let i = 0; i < n; i++) {
                     let rowZ = [];
-                    for (let j = 0; j < n; j++) {{
+                    for (let j = 0; j < n; j++) {
                         let xi = X[i][j];
                         let yj = Y[i][j];
-                        // Asymmetrischer Volatility-Smile mit hoher Amplitude & Dynamik
                         let skew = 0.3 * xi;
                         let smile = 0.28 * (xi * xi) + 0.18 * (yj * yj);
                         let wave = 0.4 * Math.sin(xi * 0.9 - frame) * Math.cos(yj * 0.7 + frame);
                         let z = 1.4 + smile - skew + wave;
                         rowZ.push(Math.max(0.2, z));
-                    }}
+                    }
                     Z.push(rowZ);
-                }}
+                }
                 
-                Plotly.animate('plotly-div', {{
-                    data: [{{z: Z}}],
+                Plotly.animate('plotly-div', {
+                    data: [{z: Z}],
                     traces: [0],
-                    layout: {{}}
-                }}, {{
-                    transition: {{duration: 40, easing: 'linear'}},
-                    frame: {{duration: 40, redraw: true}}
-                }});
+                    layout: {}
+                }, {
+                    transition: {duration: 40, easing: 'linear'},
+                    frame: {duration: 40, redraw: true}
+                });
                 
                 requestAnimationFrame(runAnimation);
             }
@@ -252,6 +251,13 @@ else:
     </body>
     </html>
     """
+    
+    html_code = (
+        raw_html
+        .replace("MARKET_NAME", selected_market)
+        .replace("$PRICE_VAL", f"${current_price:,.2f}")
+        .replace("PCT_VAL", f"{diff_percent:+.2f}%")
+    )
     
     components.html(html_code, height=600)
     st.caption("ℹ️ **Live 3D-Volatilität:** Läuft vollautomatisch, flüssig, asymmetrisch und ohne Button-Klicks. Du kannst das Modell jederzeit mit der Maus drehen.")
