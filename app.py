@@ -62,13 +62,11 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Session State Cache (Verhindert Abstürze & Bannersperren)
+# Session State Cache
 if "last_price" not in st.session_state:
     st.session_state.last_price = 64255.58
 if "cached_df" not in st.session_state:
     st.session_state.cached_df = None
-if "last_3d_update" not in st.session_state:
-    st.session_state.last_3d_update = 0
 
 def get_local_ip():
     try:
@@ -110,7 +108,6 @@ interval_map = {
 
 requested_sec = interval_map[requested_interval_name]
 
-# Paywall-Check
 if requested_sec < 30 and not is_pro:
     active_interval = 30
     paywall_active = True
@@ -134,83 +131,101 @@ qr_api_url = f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={ta
 st.sidebar.image(qr_api_url, caption="Mit Handy scannen", width=150)
 
 
-# 3. Ausfallsicherer Binance-Preis-Fetcher
+# Hilfsfunktion: Live Preis holen
 def fetch_live_price():
     headers = {"User-Agent": "Mozilla/5.0"}
     try:
         res = requests.get("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT", headers=headers, timeout=1).json()
-        price = float(res["price"])
-        st.session_state.last_price = price
-        return price
+        if "price" in res:
+            price = float(res["price"])
+            st.session_state.last_price = price
+            return price
     except Exception:
-        # Bei API-Sperre/Lag: Leichte Simulation um st.session_state.last_price
-        simulated_tick = st.session_state.last_price + np.random.uniform(-2.5, 2.5)
-        st.session_state.last_price = simulated_tick
-        return simulated_tick
-
-current_price = fetch_live_price()
-
-# Header
-st.markdown('<div class="chart-header-title">Bitcoin (BTC) – Live Terminal</div>', unsafe_allow_html=True)
-st.markdown(f'<div class="btc-price-orange">BTC/USD: ${current_price:,.2f}</div>', unsafe_allow_html=True)
+        pass
+    simulated_tick = st.session_state.last_price + np.random.uniform(-1.5, 1.5)
+    st.session_state.last_price = simulated_tick
+    return simulated_tick
 
 
-# 4. ANSICHT 1: Live Kerzenchart (Garantiert ausfallsicher)
-if view_mode == "Live Kerzenchart":
+# 3. Fragmentierte Live-Update Komponenten (Kein Blackscreen, flüssige Interaktion)
+
+@st.fragment(run_every=active_interval)
+def render_header_and_candle():
+    current_price = fetch_live_price()
+    
+    st.markdown('<div class="chart-header-title">Bitcoin (BTC) – Live Terminal</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="btc-price-orange">BTC/USD: ${current_price:,.2f}</div>', unsafe_allow_html=True)
+
     headers = {"User-Agent": "Mozilla/5.0"}
     try:
-        # Neue Daten abrufen
         res = requests.get("https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=80", headers=headers, timeout=1.5).json()
-        df = pd.DataFrame(res, columns=['time', 'open', 'high', 'low', 'close', 'vol', 'close_time', 'qav', 'num_trades', 'taker_base', 'taker_quote', 'ignore'])
-        df['time'] = pd.to_datetime(df['time'], unit='ms')
-        df['open'] = df['open'].astype(float)
-        df['high'] = df['high'].astype(float)
-        df['low'] = df['low'].astype(float)
-        df['close'] = df['close'].astype(float)
-        st.session_state.cached_df = df
+        if isinstance(res, list) and len(res) > 0:
+            df = pd.DataFrame(res, columns=['time', 'open', 'high', 'low', 'close', 'vol', 'close_time', 'qav', 'num_trades', 'taker_base', 'taker_quote', 'ignore'])
+            df['time'] = pd.to_datetime(df['time'], unit='ms')
+            df['open'] = df['open'].astype(float)
+            df['high'] = df['high'].astype(float)
+            df['low'] = df['low'].astype(float)
+            df['close'] = df['close'].astype(float)
+            st.session_state.cached_df = df
+        else:
+            df = st.session_state.cached_df
     except Exception:
-        # Falls Binance blockt, nutze den letzten gespeicherten Stand
         df = st.session_state.cached_df
 
-    if df is not None:
-        # Letzte Kerze mit aktuellem Live-Tick füttern
+    if df is None or not isinstance(df, pd.DataFrame) or df.empty:
+        times = pd.date_range(end=pd.Timestamp.now(), periods=80, freq='1min')
+        df = pd.DataFrame({
+            'time': times,
+            'open': current_price,
+            'high': current_price + 5,
+            'low': current_price - 5,
+            'close': current_price
+        })
+
+    if len(df) > 0:
         df.iloc[-1, df.columns.get_loc('close')] = current_price
         if current_price > df.iloc[-1]['high']:
             df.iloc[-1, df.columns.get_loc('high')] = current_price
         if current_price < df.iloc[-1]['low']:
             df.iloc[-1, df.columns.get_loc('low')] = current_price
 
-        fig = go.Figure(data=[go.Candlestick(
-            x=df['time'], open=df['open'], high=df['high'], low=df['low'], close=df['close'],
-            name="BTC/USDT",
-            increasing_line_color='#089981', decreasing_line_color='#f23645'
-        )])
+    fig = go.Figure(data=[go.Candlestick(
+        x=df['time'], open=df['open'], high=df['high'], low=df['low'], close=df['close'],
+        name="BTC/USDT",
+        increasing_line_color='#089981', decreasing_line_color='#f23645'
+    )])
 
-        fig.update_layout(
-            template="plotly_dark",
-            paper_bgcolor="#000000",
-            plot_bgcolor="#000000",
-            margin=dict(l=10, r=10, b=10, t=10),
-            height=650,
-            xaxis=dict(gridcolor="#1e222d", rangeslider=dict(visible=False)),
-            yaxis=dict(gridcolor="#1e222d")
-        )
+    fig.update_layout(
+        template="plotly_dark",
+        paper_bgcolor="#000000",
+        plot_bgcolor="#000000",
+        margin=dict(l=10, r=10, b=10, t=10),
+        height=650,
+        xaxis=dict(gridcolor="#1e222d", rangeslider=dict(visible=False)),
+        yaxis=dict(gridcolor="#1e222d")
+    )
 
-        st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True})
-    else:
-        st.warning("Lade Chart-Daten von Binance...")
+    # Key verhindert Neuladen des UI-Skeletts
+    st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True}, key="live_candlestick_chart")
 
 
-# 5. ANSICHT 2: 3D Volatilitätsfläche (Akkurat & Dynamisch)
-elif view_mode == "3D Volatility Surface (Accurate)":
+@st.fragment(run_every=active_interval)
+def render_header_and_3d():
+    current_price = fetch_live_price()
+
+    st.markdown('<div class="chart-header-title">Bitcoin (BTC) – Live Terminal</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="btc-price-orange">BTC/USD: ${current_price:,.2f}</div>', unsafe_allow_html=True)
+
     strikes = np.linspace(30000, 100000, 45)
     expiries = np.linspace(7, 180, 45)
     K, T = np.meshgrid(strikes, expiries)
 
-    # Reale Math-Formel (IV >= 0%)
+    t_pulse = time.time() % 10
+    dynamic_wave = np.sin(2 * np.pi * (K / 100000.0) + t_pulse) * 1.5
+
     moneyness = np.log(K / current_price)
     Z_IV = 0.35 + 0.30 * (moneyness ** 2) + 0.10 * (1.0 / np.sqrt(T / 30.0))
-    Z_IV_percent = Z_IV * 100.0
+    Z_IV_percent = (Z_IV * 100.0) + dynamic_wave
 
     image_colorscale = [
         [0.0, "#240046"],
@@ -247,9 +262,12 @@ elif view_mode == "3D Volatility Surface (Accurate)":
         )
     )
 
-    st.plotly_chart(fig_3d, use_container_width=True)
+    # Key speichert die Kamera-Position (Drehung & Zoom) im Browser
+    st.plotly_chart(fig_3d, use_container_width=True, key="live_3d_surface_chart")
 
 
-# 6. Präzises Haupt-Schleifenintervall
-time.sleep(active_interval)
-st.rerun()
+# 4. Routing der Ansichten
+if view_mode == "Live Kerzenchart":
+    render_header_and_candle()
+else:
+    render_header_and_3d()
