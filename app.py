@@ -44,7 +44,6 @@ html_code = f"""
         const priceEl = document.getElementById('btc-price');
         let currentPrice = 65000;
 
-        // Fallback-Kerzen Generator
         function generateFallbackCandles() {{
             let list = [];
             let now = Math.floor(Date.now() / 1000) - 100 * 60;
@@ -61,13 +60,16 @@ html_code = f"""
         }}
 
         // ====================================================
-        // 1. TRADINGVIEW NATIVE CANDLESTICK ENGINE (SCHWARZER BG)
+        // 1. TRADINGVIEW NATIVE CANDLESTICK ENGINE (SCHWARZER BG GEFIXT)
         // ====================================================
         if (viewMode.includes("Kerzenchart")) {{
             const chart = LightweightCharts.createChart(container, {{
                 width: container.clientWidth,
                 height: 680,
-                layout: {{ backgroundColor: '#000000', textColor: '#A0A0A0' }},
+                layout: {{ 
+                    background: {{ type: 'solid', color: '#000000' }}, 
+                    textColor: '#A0A0A0' 
+                }},
                 grid: {{ vertLines: {{ color: '#0F0F0F' }}, horzLines: {{ color: '#0F0F0F' }} }},
                 crosshair: {{ mode: LightweightCharts.CrosshairMode.Normal }},
                 rightPriceScale: {{ borderColor: '#222222', autoScale: true }},
@@ -136,7 +138,7 @@ html_code = f"""
             connectCandleWS();
 
         // ====================================================
-        // 2. ULTRA-LIVE 3D CHART ENGINE (MILLISEKUNDEN-ANIMATION + KAMERA-LOCK)
+        // 2. ULTRA-LIVE 3D CHART ENGINE
         // ====================================================
         }} else {{
             let tOffset = 0;
@@ -179,7 +181,7 @@ html_code = f"""
                         paper_bgcolor: '#000000',
                         plot_bgcolor: '#000000',
                         margin: {{ l: 0, r: 0, b: 0, t: 0 }},
-                        uirevision: 'persistent_camera_lock', // Hält deine Kamera dauerhaft fest!
+                        uirevision: 'persistent_camera_lock',
                         scene: {{
                             xaxis: {{ title: 'Strike ($)', gridcolor: '#222222', color: '#888' }},
                             yaxis: {{ title: 'Days', gridcolor: '#222222', color: '#888' }},
@@ -190,12 +192,10 @@ html_code = f"""
 
                     Plotly.newPlot(container, [trace], layout, {{ responsive: true, displayModeBar: false }});
 
-                    // Millisekunden-Smooth Animation Loop (requestAnimationFrame für ultra-flüssige Wellen)
                     function animate3D() {{
-                        tOffset += 0.015; // Millisekunden-Schrittweite für butterweiche Animation
+                        tOffset += 0.015;
                         let surf = animSurf(currentPrice, tOffset);
                         
-                        // WICHTIG: KEINE Kamera im Layout übergeben -> uirevision behält deine Maus-Drehung bei!
                         Plotly.react(container, [{{
                             x: surf.x, y: surf.y, z: surf.z,
                             type: 'surface',
