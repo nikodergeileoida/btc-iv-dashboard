@@ -104,7 +104,7 @@ col3.metric("Ausgewählter Asset", selected_market, "Aktiv")
 
 st.divider()
 
-# Ansichten-Umschaltung mit flüssigen Fragmenten
+# Ansichten-Umschaltung
 if "Chart" in view_mode:
     @st.fragment(run_every=1.0)
     def render_live_chart():
@@ -138,53 +138,49 @@ if "Chart" in view_mode:
     render_live_chart()
 
 else:
-    @st.fragment(run_every=0.1)
-    def render_3d_surface():
-        st.subheader(f"🧊 3D Surface Chart — {selected_market}")
-        
-        # Exakte Gitterstruktur von -3 bis 3
-        x = np.linspace(-3.0, 3.0, 40)
-        y = np.linspace(-3.0, 3.0, 40)
-        X, Y = np.meshgrid(x, y)
-        
-        # Dynamische Wellenform mit Animation
-        phase = datetime.now().timestamp() * 3
-        R = np.sqrt(X**2 + Y**2) + 1e-5
-        Z = np.sin(R + phase * 0.2) / (R * 0.5 + 1.0)
-        
-        fig = go.Figure(data=[go.Surface(z=Z, x=X, y=Y, colorscale='Viridis')])
-        fig.update_layout(
-            template="plotly_dark",
-            title=dict(
-                text=f"{selected_market} – 3D Surface Chart [LIVE]",
-                font=dict(color="white", size=16)
-            ),
-            autosize=True,
-            height=600,
-            margin=dict(l=10, r=10, b=10, t=50),
-            scene=dict(
-                xaxis_title='Strike Price',
-                yaxis_title='Time',
-                zaxis=dict(title='', backgroundcolor="black", gridcolor="gray"),
-                xaxis=dict(backgroundcolor="black", gridcolor="gray"),
-                yaxis=dict(backgroundcolor="black", gridcolor="gray")
-            )
+    # 3D Surface komplett stabil ohne ständiges Neuladen (kein Flashen mehr)
+    st.subheader(f"🧊 3D Surface Chart — {selected_market}")
+    
+    # Exakte Gitterstruktur von -3 bis 3
+    x = np.linspace(-3.0, 3.0, 40)
+    y = np.linspace(-3.0, 3.0, 40)
+    X, Y = np.meshgrid(x, y)
+    
+    # Stabile, saubere Wellenform
+    R = np.sqrt(X**2 + Y**2) + 1e-5
+    Z = np.sin(R) / (R * 0.5 + 1.0)
+    
+    fig = go.Figure(data=[go.Surface(z=Z, x=X, y=Y, colorscale='Viridis')])
+    fig.update_layout(
+        template="plotly_dark",
+        title=dict(
+            text=f"{selected_market} – 3D Surface Chart",
+            font=dict(color="white", size=16)
+        ),
+        autosize=True,
+        height=600,
+        margin=dict(l=10, r=10, b=10, t=50),
+        scene=dict(
+            xaxis_title='Strike Price',
+            yaxis_title='Time',
+            zaxis=dict(title='', backgroundcolor="black", gridcolor="gray"),
+            xaxis=dict(backgroundcolor="black", gridcolor="gray"),
+            yaxis=dict(backgroundcolor="black", gridcolor="gray")
         )
-        
-        # Preis-Anzeige oben links in Orange
-        fig.add_annotation(
-            text=f"{selected_market}: ${current_price:,.2f}",
-            xref="paper", yref="paper",
-            x=0.02, y=0.92,
-            showarrow=False,
-            font=dict(size=18, color="orange", family="Arial Black")
-        )
-        
-        st.plotly_chart(
-            fig, 
-            use_container_width=True,
-            config={'scrollZoom': True, 'displayModeBar': True}
-        )
-        st.caption("ℹ️ Das 3D-Modell bewegt sich fließend in Echtzeit und lässt sich komplett mit der Maus drehen und zoomen.")
-
-    render_3d_surface()
+    )
+    
+    # Preis-Anzeige oben links in Orange
+    fig.add_annotation(
+        text=f"{selected_market}: ${current_price:,.2f}",
+        xref="paper", yref="paper",
+        x=0.02, y=0.92,
+        showarrow=False,
+        font=dict(size=18, color="orange", family="Arial Black")
+    )
+    
+    st.plotly_chart(
+        fig, 
+        use_container_width=True,
+        config={'scrollZoom': True, 'displayModeBar': True}
+    )
+    st.caption("ℹ️ Das 3D-Modell bleibt stabil, flackert nicht und lässt sich butterweich mit der Maus drehen und zoomen.")
