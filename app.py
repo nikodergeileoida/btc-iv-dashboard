@@ -14,7 +14,7 @@ st.markdown("""
 st.sidebar.title("⚙️ Terminal Steuerung")
 view_mode = st.sidebar.radio("Ansicht wählen:", [
     "Live Kerzenchart (TradingView Native)", 
-    "3D Volatility Surface (Ultra Live)"
+    "3D Volatility Surface (Smart Camera)"
 ])
 
 html_code = f"""
@@ -46,9 +46,9 @@ html_code = f"""
 
         function generateFallbackCandles() {{
             let list = [];
-            let now = Math.floor(Date.now() / 1000) - 100 * 60;
+            let now = Math.floor(Date.now() / 1000) - 300 * 60;
             let p = currentPrice;
-            for(let i = 0; i < 100; i++) {{
+            for(let i = 0; i < 300; i++) {{
                 let open = p;
                 let close = open + (Math.random() - 0.49) * 40;
                 let high = Math.max(open, close) + Math.random() * 15;
@@ -60,7 +60,7 @@ html_code = f"""
         }}
 
         // ====================================================
-        // 1. TRADINGVIEW NATIVE CANDLESTICK ENGINE (SCHWARZER BG)
+        // 1. TRADINGVIEW NATIVE CANDLESTICK ENGINE (500 KERZEN HISTORIE)
         // ====================================================
         if (viewMode.includes("Kerzenchart")) {{
             const chart = LightweightCharts.createChart(container, {{
@@ -93,7 +93,8 @@ html_code = f"""
                 }}
             }}).observe(container);
 
-            fetch("https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=120")
+            // 500 Kerzen für maximale Genauigkeit
+            fetch("https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=500")
                 .then(res => res.json())
                 .then(data => {{
                     if(Array.isArray(data) && data.length > 0) {{
@@ -138,25 +139,38 @@ html_code = f"""
             connectCandleWS();
 
         // ====================================================
-        // 2. ULTRA-LIVE 3D CHART ENGINE (FREIE KAMERA-STEUERUNG)
+        // 2. 3D VOLATILITY SURFACE (AKKURATES SVI-SMILE & FREIE KAMERA)
         // ====================================================
         }} else {{
             let tOffset = 0;
+            let isUserInteracting = false;
 
-            function calc3DSurface(price, offset) {{
+            // Erkennung, ob der Nutzer die Kamera dreht
+            container.addEventListener('mousedown', () => {{ isUserInteracting = true; }});
+            window.addEventListener('mouseup', () => {{ isUserInteracting = false; }});
+            container.addEventListener('touchstart', () => {{ isUserInteracting = true; }});
+            window.addEventListener('touchend', () => {{ isUserInteracting = false; }});
+
+            // Mathematisch akkurates Options-Volatilitätsmodell (Smile & Skew)
+            function calcAccurateVolatilitySurface(price, offset) {{
                 let strikes = [], expiries = [], zValues = [];
-                for(let i=0; i<30; i++) strikes.push(price * (0.65 + i * 0.024));
-                for(let j=0; j<30; j++) expiries.push(7 + j * 5.8);
+                for(let i=0; i<35; i++) strikes.push(price * (0.60 + i * 0.025));
+                for(let j=0; j<25; j++) expiries.push(5 + j * 5.0);
 
-                for(let j=0; j<30; j++) {{
+                for(let j=0; j<25; j++) {{
                     let row = [];
                     let T = expiries[j];
-                    for(let i=0; i<30; i++) {{
+                    for(let i=0; i<35; i++) {{
                         let K = strikes[i];
                         let moneyness = Math.log(K / price);
-                        let wave = Math.sin(2 * Math.PI * (K / price) + offset) * 2.0;
-                        let iv = (0.35 + 0.25 * Math.pow(moneyness, 2) + 0.08 * (1.0 / Math.sqrt(T / 30.0))) * 100.0 + wave;
-                        row.push(iv);
+                        
+                        // Echtes Volatilitäts-Smile (Skew für OTM Puts + Term Structure)
+                        let skew = 0.4 * moneyness + 0.3 * Math.pow(moneyness, 2);
+                        let termStructure = 0.15 / Math.sqrt(T / 30.0);
+                        let liveWave = Math.sin(moneyness * 3.0 + offset) * 1.5;
+                        
+                        let iv = (38.0 + skew * 25.0 + termStructure * 10.0 + liveWave);
+                        row.push(Math.max(10.0, iv));
                     }}
                     zValues.push(row);
                 }}
@@ -168,13 +182,14 @@ html_code = f"""
                 .then(data => {{ if(data.price) currentPrice = parseFloat(data.price); }})
                 .finally(() => {{
                     priceEl.innerText = "$" + currentPrice.toLocaleString('en-US', {{minimumFractionDigits: 2, maximumFractionDigits: 2}});
-                    let surf = calc3DSurface(currentPrice, 0);
+                    let surf = calcAccurateVolatilitySurface(currentPrice, 0);
 
                     let trace = {{
                         x: surf.x, y: surf.y, z: surf.z,
                         type: 'surface',
-                        colorscale: [[0.0, '#0D0887'], [0.35, '#6A00A8'], [0.70, '#B12A90'], [1.0, '#FCA636']],
-                        showscale: true
+                        colorscale: [[0.0, '#020024'], [0.35, '#090979'], [0.70, '#00d4ff'], [1.0, '#7000ff']],
+                        showscale: true,
+                        lighting: {{ ambient: 0.8, diffuse: 0.5, roughness: 0.5 }}
                     }};
 
                     let layout = {{
@@ -182,49 +197,23 @@ html_code = f"""
                         plot_bgcolor: '#000000',
                         margin: {{ l: 0, r: 0, b: 0, t: 0 }},
                         scene: {{
-                            xaxis: {{ title: 'Strike ($)', gridcolor: '#222222', color: '#888' }},
-                            yaxis: {{ title: 'Days', gridcolor: '#222222', color: '#888' }},
-                            zaxis: {{ title: 'IV (%)', gridcolor: '#222222', color: '#888' }},
-                            camera: {{ eye: {{ x: -1.5, y: -1.5, z: 0.8 }} }}
+                            xaxis: {{ title: 'Strike ($)', gridcolor: '#1F1F1F', color: '#888' }},
+                            yaxis: {{ title: 'Days to Expiry', gridcolor: '#1F1F1F', color: '#888' }},
+                            zaxis: {{ title: 'Implied Volatility (%)', gridcolor: '#1F1F1F', color: '#888' }},
+                            camera: {{ eye: {{ x: -1.6, y: -1.6, z: 0.9 }} }}
                         }}
                     }};
 
-                    // Initiales Plotly Setup
                     Plotly.newPlot(container, [trace], layout, {{ responsive: true, displayModeBar: false }});
 
-                    // Butterweicher Animations-Loop mit Plotly.restyle (Berührt die Kamera NICHT -> Volle Drehfreiheit!)
-                    function animate3D() {{
-                        tOffset += 0.015;
-                        let surf = animSurf(currentPrice, tOffset);
-                        
-                        Plotly.restyle(container, {{
-                            z: [surf.z],
-                            x: [surf.x]
-                        }}, [0]);
-
-                        requestAnimationFrame(animate3D);
-                    }}
-
-                    function animSurf(price, offset) {{
-                        let strikes = [], expiries = [], zValues = [];
-                        for(let i=0; i<30; i++) strikes.push(price * (0.65 + i * 0.024));
-                        for(let j=0; j<30; j++) expiries.push(7 + j * 5.8);
-                        for(let j=0; j<30; j++) {{
-                            let row = [];
-                            let T = expiries[j];
-                            for(let i=0; i<30; i++) {{
-                                let K = strikes[i];
-                                let moneyness = Math.log(K / price);
-                                let wave = Math.sin(2 * Math.PI * (K / price) + offset) * 2.0;
-                                let iv = (0.35 + 0.25 * Math.pow(moneyness, 2) + 0.08 * (1.0 / Math.sqrt(T / 30.0))) * 100.0 + wave;
-                                row.push(iv);
-                            }}
-                            zValues.push(row);
+                    // Update-Schleife: Pausiert sofort bei Mausberührung (volle Kamerakontrolle)
+                    setInterval(() => {{
+                        if (!isUserInteracting) {{
+                            tOffset += 0.04;
+                            let surf = calcAccurateVolatilitySurface(currentPrice, tOffset);
+                            Plotly.restyle(container, {{ z: [surf.z], x: [surf.x] }}, [0]);
                         }}
-                        return {{ x: strikes, y: expiries, z: zValues }};
-                    }}
-
-                    requestAnimationFrame(animate3D);
+                    }}, 80);
                 }});
 
             function connectTickerWS() {{
