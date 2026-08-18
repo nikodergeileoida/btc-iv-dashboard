@@ -475,3 +475,17 @@ else:
 # 8. Auto Refresh Loop
 time.sleep(30)
 st.rerun()
+# --- QR-Code Generator in der Sidebar ---
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 📱 Handy-Zugriff (QR-Code)")
+
+# Hier gibst du deine Network- oder Tunnel-URL ein
+user_url = st.sidebar.text_input(
+    "Deine App-URL:", 
+    value="http://192.168.1.50:8501"  # Ersetze dies durch deine Network-URL aus dem Terminal
+)
+
+if user_url:
+    # Generiert automatisch das QR-Code Bild über eine kostenlose API
+    qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={user_url}"
+    st.sidebar.image(qr_code_url, caption="Mit der Handy-Kamera scannen", width=180)
