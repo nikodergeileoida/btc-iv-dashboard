@@ -3,10 +3,18 @@ import streamlit.components.v1 as components
 import requests
 import json
 import pandas as pd
+import numpy as np
 import time
 
+# Versuche Scipy für HD-Glättung der 3D-Fläche zu laden
+try:
+    from scipy.ndimage import zoom
+    HAS_SCIPY = True
+except ImportError:
+    HAS_SCIPY = False
+
 # 1. Page Config & Ultra Dark Cyberpunk Theme
-st.set_page_config(page_title="BTC Cyber Terminal v4", layout="wide")
+st.set_page_config(page_title="BTC Cyber Terminal v5 HD", layout="wide")
 
 st.markdown("""
     <style>
@@ -42,16 +50,25 @@ st.markdown("""
             color: #FFDDDD;
             margin-bottom: 15px;
         }
+        
+        /* Neon Pulsieren für den Admin Modus */
+        @keyframes adminGlow {
+            0% { box-shadow: 0 0 10px #00FF66; border-color: #00FF66; }
+            50% { box-shadow: 0 0 25px #00FF66, 0 0 10px #00F3FF; border-color: #00F3FF; }
+            100% { box-shadow: 0 0 10px #00FF66; border-color: #00FF66; }
+        }
+        
         .admin-unlocked-box {
             background: linear-gradient(135deg, rgba(8, 35, 20, 0.95) 0%, rgba(3, 15, 8, 0.95) 100%);
-            border: 1px solid #00FF66;
-            box-shadow: 0 0 15px rgba(0, 255, 102, 0.4);
+            border: 2px solid #00FF66;
+            animation: adminGlow 2s infinite;
             border-radius: 8px;
-            padding: 10px;
+            padding: 12px;
             text-align: center;
             color: #00FF66;
             margin-bottom: 15px;
             font-weight: bold;
+            letter-spacing: 1.5px;
         }
         .paypal-btn {
             background-color: #0070BA;
@@ -68,9 +85,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # 2. Admin Passwort
-ADMIN_PASSWORD = "niko2002"
+ADMIN_PASSWORD = "dein_secret_passwort"
 
-# 3. Realtime Ticker Banner
+# 3. Realtime Ticker Banner (Binance Live Stream)
 btc_header_html = """
 <div id="ticker-card" style="
     background: linear-gradient(135deg, #071018 0%, #020508 100%);
@@ -84,7 +101,7 @@ btc_header_html = """
     font-family: sans-serif;
 ">
     <div style="text-align: left;">
-        <span style="font-size: 0.75rem; color: #00A3AA; text-transform: uppercase; letter-spacing: 2px;">BTC/USD Index Feed</span><br>
+        <span style="font-size: 0.75rem; color: #00A3AA; text-transform: uppercase; letter-spacing: 2px;">BTC/USDT Live Index</span><br>
         <span id="btc-price" style="font-size: 2.2rem; font-weight: 900; color: #00F3FF; text-shadow: 0 0 12px rgba(0, 243, 255, 0.5);">--.--</span>
     </div>
     <div style="text-align: center;">
@@ -100,21 +117,21 @@ btc_header_html = """
 <script>
     async function fetchTicker() {
         try {
-            const res = await fetch('https://www.deribit.com/api/v2/public/get_book_summary_by_currency?currency=BTC&kind=future');
+            const res = await fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT');
             const data = await res.json();
-            const perp = data.result.find(i => i.instrument_name === 'BTC-PERPETUAL');
-            if (perp) {
-                document.getElementById('btc-price').innerText = '$' + perp.mark_price.toLocaleString('en-US', {minimumFractionDigits: 2});
-                const change = (((perp.mark_price - perp.open_interest) / perp.mark_price) * 100).toFixed(2);
+            if (data) {
+                const price = parseFloat(data.lastPrice).toLocaleString('en-US', {minimumFractionDigits: 2});
+                document.getElementById('btc-price').innerText = '$' + price;
+                const change = parseFloat(data.priceChangePercent).toFixed(2);
                 const changeEl = document.getElementById('btc-change');
                 changeEl.innerText = (change >= 0 ? '+' : '') + change + '%';
                 changeEl.style.color = change >= 0 ? '#00FF66' : '#FF0055';
-                document.getElementById('btc-range').innerText = '$' + perp.high.toFixed(0) + ' / $' + perp.low.toFixed(0);
+                document.getElementById('btc-range').innerText = '$' + parseFloat(data.highPrice).toFixed(0) + ' / $' + parseFloat(data.lowPrice).toFixed(0);
             }
         } catch (e) { console.error(e); }
     }
     fetchTicker();
-    setInterval(fetchTicker, 1000);
+    setInterval(fetchTicker, 1500);
 </script>
 """
 components.html(btc_header_html, height=90)
@@ -123,19 +140,19 @@ components.html(btc_header_html, height=90)
 st.sidebar.markdown("### ⚙️ Terminal Navigation")
 view_mode = st.sidebar.radio(
     "Visualisierung wählen:", 
-    ["3D Modell (Surface / Grid)", "Live Kerzenchart", "Put/Call Skew Radar", "2D Heatmap", "Volatility Smiles"]
+    ["3D HD Modell (Surface / Grid)", "Live Kerzenchart (100% Fix)", "Put/Call Skew Radar", "2D Heatmap", "Volatility Smiles"]
 )
 
-# Spezifische 3D-Einstellungen nur anzeigen, wenn 3D gewählt ist
-if view_mode == "3D Modell (Surface / Grid)":
+# 3D Optionen
+if view_mode == "3D HD Modell (Surface / Grid)":
     st.sidebar.markdown("---")
-    st.sidebar.markdown("### 🧊 3D Modus Option")
+    st.sidebar.markdown("### 🧊 3D High-Detail Modus")
     three_d_style = st.sidebar.radio(
         "3D Stil wählen:",
-        ["Wireframe Grid (Neon Net)", "Solid Surface (3D Fläche)"]
+        ["High-Detail Surface (Detaillierte Fläche)", "Wireframe Grid (Neon Net)"]
     )
     colorscale_choice = st.sidebar.selectbox(
-        "Farb-Palette (nur bei Surface):",
+        "Farb-Palette:",
         ["Electric", "Turbo", "Plasma", "Viridis"]
     )
     auto_rotate = st.sidebar.checkbox("3D Orbit Auto-Rotation", value=False)
@@ -156,7 +173,7 @@ update_rate = st.sidebar.selectbox(
 
 if "PRO" in update_rate:
     if is_admin:
-        st.markdown('<div class="admin-unlocked-box">⚡ ADMIN MODUS AKTIV</div>', unsafe_allow_html=True)
+        st.markdown('<div class="admin-unlocked-box">⚡ ADMIN MODUS AKTIV: UNLIMITED ACCESS</div>', unsafe_allow_html=True)
     else:
         st.markdown("""
             <div class="paywall-box">
@@ -166,7 +183,42 @@ if "PRO" in update_rate:
             </div>
         """, unsafe_allow_html=True)
 
-# 5. Data Fetcher
+# ANIMATION: Admin Unlock Konfetti
+if is_admin:
+    admin_confetti_js = """
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script>
+        var count = 200;
+        var defaults = { origin: { y: 0.7 } };
+        function fire(particleRatio, opts) {
+            confetti(Object.assign({}, defaults, opts, {
+                particleCount: Math.floor(count * particleRatio)
+            }));
+        }
+        fire(0.25, { spread: 26, startVelocity: 55, colors: ['#00F3FF', '#00FF66'] });
+        fire(0.2, { spread: 60, colors: ['#FF0055', '#FFFFFF'] });
+        fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8 });
+        fire(0.1, { spread: 120, startVelocity: 25, decay: 0.92, colors: ['#00F3FF', '#00FF66'] });
+    </script>
+    """
+    components.html(admin_confetti_js, height=0)
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 🛒 Trade & Kauf Simulator")
+if st.sidebar.button("🎉 Kauf / Order Testen"):
+    buy_animation_js = """
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <div style="background: rgba(0, 243, 255, 0.15); border: 2px solid #00F3FF; border-radius: 10px; padding: 15px; text-align: center; color: #00F3FF; font-family: sans-serif; box-shadow: 0 0 25px rgba(0,243,255,0.4);">
+        <h2>🚀 ORDER ERFOLGREICH AUSGEFÜHRT!</h2>
+        <p>1.00 BTC @ Market Order bestätigt. PRO Status aktiv!</p>
+    </div>
+    <script>
+        confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 }, colors: ['#00F3FF', '#00FF66', '#FF0055'] });
+    </script>
+    """
+    components.html(buy_animation_js, height=120)
+
+# 5. Data Fetcher für Deribit Option IV
 @st.cache_data(ttl=10)
 def get_deribit_iv_data():
     url = "https://www.deribit.com/api/v2/public/get_book_summary_by_currency?currency=BTC&kind=option"
@@ -176,61 +228,56 @@ def get_deribit_iv_data():
     except Exception:
         return []
 
-@st.cache_data(ttl=5)
-def get_btc_candles():
-    try:
-        end_ts = int(time.time() * 1000)
-        start_ts = end_ts - (120 * 60 * 1000)
-        url = f"https://www.deribit.com/api/v2/public/get_tradingview_chart_data?instrument_name=BTC-PERPETUAL&start_timestamp={start_ts}&end_timestamp={end_ts}&resolution=1"
-        res = requests.get(url, timeout=5).json()
-        data = res.get("result", {})
-        if "ticks" in data and len(data["ticks"]) > 0:
-            return pd.DataFrame({
-                'time': [time.strftime('%H:%M', time.localtime(t/1000)) for t in data['ticks']],
-                'open': data['open'],
-                'high': data['high'],
-                'low': data['low'],
-                'close': data['close']
-            })
-    except Exception:
-        pass
-    return pd.DataFrame()
+# 6. Kerzenchart Render (Rein Clientseitig via Binance API - Lädt IMMER!)
+if view_mode == "Live Kerzenchart (100% Fix)":
+    binance_candlestick_html = """
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <div id="plotly-candle" style="width:100%; height:680px;"></div>
+    <script>
+        var layout = {
+            paper_bgcolor: '#020408',
+            plot_bgcolor: '#020408',
+            font: { color: '#00F3FF' },
+            title: 'BTC/USDT Realtime 1m Candlestick Chart (Binance Live Feed)',
+            xaxis: { gridcolor: '#0D1622', rangeslider: {visible: false} },
+            yaxis: { gridcolor: '#0D1622' },
+            margin: { l: 50, r: 20, b: 40, t: 40 }
+        };
 
-# 6. Live Kerzenchart Render
-if view_mode == "Live Kerzenchart":
-    candles_df = get_btc_candles()
-    if not candles_df.empty:
-        candlestick_html = f"""
-        <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
-        <div id="plotly-candle" style="width:100%; height:680px;"></div>
-        <script>
-            var trace = {{
-                x: {json.dumps(candles_df['time'].tolist())},
-                open: {json.dumps(candles_df['open'].tolist())},
-                high: {json.dumps(candles_df['high'].tolist())},
-                low: {json.dumps(candles_df['low'].tolist())},
-                close: {json.dumps(candles_df['close'].tolist())},
-                type: 'candlestick',
-                increasing: {{line: {{color: '#00F3FF', width: 2}}, fillcolor: 'rgba(0, 243, 255, 0.4)'}},
-                decreasing: {{line: {{color: '#FF0055', width: 2}}, fillcolor: 'rgba(255, 0, 85, 0.4)'}}
-            }};
-            var layout = {{
-                paper_bgcolor: '#020408',
-                plot_bgcolor: '#020408',
-                font: {{ color: '#00F3FF' }},
-                title: 'BTC-PERPETUAL Realtime Candlestick Chart',
-                xaxis: {{ gridcolor: '#0D1622', rangeslider: {{visible: false}} }},
-                yaxis: {{ gridcolor: '#0D1622' }},
-                margin: {{ l: 50, r: 20, b: 40, t: 40 }}
-            }};
-            Plotly.react('plotly-candle', [trace], layout, {{responsive: true, displayModeBar: true, scrollZoom: true}});
-        </script>
-        """
-        components.html(candlestick_html, height=700)
-    else:
-        st.warning("Lade Live-Kerzen von Deribit...")
+        async function updateLiveCandles() {
+            try {
+                const res = await fetch('https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100');
+                const data = await res.json();
 
-# 7. Options & 3D Render
+                if (data && data.length > 0) {
+                    const times = data.map(d => new Date(d[0]).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
+                    const opens = data.map(d => parseFloat(d[1]));
+                    const highs = data.map(d => parseFloat(d[2]));
+                    const lows = data.map(d => parseFloat(d[3]));
+                    const closes = data.map(d => parseFloat(d[4]));
+
+                    var trace = {
+                        x: times,
+                        open: opens,
+                        high: highs,
+                        low: lows,
+                        close: closes,
+                        type: 'candlestick',
+                        increasing: {line: {color: '#00F3FF', width: 2}, fillcolor: 'rgba(0, 243, 255, 0.4)'},
+                        decreasing: {line: {color: '#FF0055', width: 2}, fillcolor: 'rgba(255, 0, 85, 0.4)'}
+                    };
+                    Plotly.react('plotly-candle', [trace], layout, {responsive: true, displayModeBar: true, scrollZoom: true});
+                }
+            } catch (e) { console.error('Candle error:', e); }
+        }
+
+        updateLiveCandles();
+        setInterval(updateLiveCandles, 2000); // Aktualisierung alle 2 Sekunden
+    </script>
+    """
+    components.html(binance_candlestick_html, height=700)
+
+# 7. Options & Detaillierte 3D Render Engine
 else:
     raw_data = get_deribit_iv_data()
     if raw_data:
@@ -250,7 +297,20 @@ else:
             pivot = df.pivot_table(index="strike", columns="expiry", values="iv", aggfunc="mean").dropna()
             strikes = pivot.index.tolist()
             expiries = pivot.columns.tolist()
-            z_values = pivot.values.tolist()
+            z_values = pivot.values
+
+            # Interpolation für HD-Glättung der 3D-Fläche
+            if HAS_SCIPY and len(strikes) > 2 and len(expiries) > 2:
+                z_dense = zoom(z_values, (2.5, 2.5), order=3) # 2.5x höhere Dichte
+                strikes_dense = np.linspace(strikes[0], strikes[-1], z_dense.shape[0]).tolist()
+                expiries_dense = []
+                for idx in np.linspace(0, len(expiries) - 1, z_dense.shape[1]):
+                    expiries_dense.append(expiries[int(round(idx))])
+                z_final = z_dense.tolist()
+            else:
+                strikes_dense = strikes
+                expiries_dense = expiries
+                z_final = z_values.tolist()
 
             m1, m2, m3, m4 = st.columns(4)
             with m1:
@@ -262,8 +322,8 @@ else:
             with m4:
                 st.markdown(f'<div class="metric-card"><div class="metric-title">Options Kontrakte</div><div class="metric-value">{len(df)}</div></div>', unsafe_allow_html=True)
 
-            # 3D MODELL RENDER (WIRE FRAME vs SOLID SURFACE)
-            if view_mode == "3D Modell (Surface / Grid)":
+            # 3D MODEL RENDER
+            if view_mode == "3D HD Modell (Surface / Grid)":
                 rotate_js = """
                 var r = 1.35; var theta = 0;
                 setInterval(function(){
@@ -282,11 +342,13 @@ else:
                         },
                     """
                     colorscale_script = "colorscale: 'Electric',"
-                else: # Solid Surface
+                else: # High Detail Surface
                     surface_config = "hidesurface: false,"
                     contours_config = """
                         contours: {
-                            z: { show: true, usecolormap: true, highlightcolor: "#00F3FF", project: { z: true } }
+                            z: { show: true, usecolormap: true, highlightcolor: "#00F3FF", project: { z: true } },
+                            x: { show: true, color: "rgba(0,243,255,0.1)", width: 1 },
+                            y: { show: true, color: "rgba(255,0,85,0.1)", width: 1 }
                         },
                     """
                     colorscale_script = f"colorscale: '{colorscale_choice}',"
@@ -296,14 +358,14 @@ else:
                 <div id="plotly-surface" style="width:100%; height:650px;"></div>
                 <script>
                     var data = [{{
-                        x: {json.dumps(expiries)},
-                        y: {json.dumps(strikes)},
-                        z: {json.dumps(z_values)},
+                        x: {json.dumps(expiries_dense)},
+                        y: {json.dumps(strikes_dense)},
+                        z: {json.dumps(z_final)},
                         type: 'surface',
                         {surface_config}
                         {colorscale_script}
                         {contours_config}
-                        lighting: {{ ambient: 0.5, diffuse: 0.8, specular: 1.5, roughness: 0.2 }}
+                        lighting: {{ ambient: 0.6, diffuse: 0.9, specular: 1.8, roughness: 0.1 }}
                     }}];
                     var layout = {{
                         paper_bgcolor: '#020408',
@@ -372,7 +434,7 @@ else:
                     var data = [{{
                         x: {json.dumps(expiries)},
                         y: {json.dumps(strikes)},
-                        z: {json.dumps(z_values)},
+                        z: {json.dumps(pivot.values.tolist())},
                         type: 'heatmap',
                         colorscale: 'Electric'
                     }}];
