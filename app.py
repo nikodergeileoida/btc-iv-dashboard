@@ -3,23 +3,12 @@ import numpy as np
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
-# 1. Konfiguration & Layout auf Full-Width
+# 1. Konfiguration
 st.set_page_config(
     page_title="Global Multi-Asset Terminal",
     page_icon="📈",
     layout="wide"
 )
-
-st.markdown("""
-    <style>
-        .block-container {
-            padding-top: 1rem;
-            padding-bottom: 1rem;
-            padding-left: 1.5rem;
-            padding-right: 1.5rem;
-        }
-    </style>
-""", unsafe_allow_html=True)
 
 # 2. Sidebar Navigation & Markt-Auswahl
 st.sidebar.title("⚡ Terminal Control")
@@ -51,7 +40,7 @@ else:
 selected_market = st.sidebar.selectbox("🎯 Spezieller Markt:", market_list)
 
 # Marktstatus-Logik
-def get_market_status(m_type):
+def get_market_status():
     if "Krypto" in asset_class:
         return "🟢 24/7 Geöffnet (Live)", "Open"
     now_hour = datetime.utcnow().hour
@@ -64,9 +53,9 @@ def get_market_status(m_type):
     else:
         return "🔴 Markt Geschlossen", "Closed"
 
-status_text, status_flag = get_market_status(asset_class)
+status_text, status_flag = get_market_status()
 
-# Session State Initialisierung
+# Session State für stabile Live-Daten
 if "market_data" not in st.session_state or st.session_state.get("current_market") != selected_market:
     np.random.seed(sum(map(ord, selected_market)))
     timestamps = [datetime.now() - timedelta(minutes=i) for i in range(40, 0, -1)]
@@ -95,11 +84,17 @@ if "market_data" not in st.session_state or st.session_state.get("current_market
 
 data = st.session_state.market_data
 
+# Live-Tick auf die letzte Kerze
+tick_change = np.random.randn() * (base_price * 0.0002)
+data["closes"][-1] += tick_change
+data["highs"][-1] = max(data["highs"][-1], data["closes"][-1])
+data["lows"][-1] = min(data["lows"][-1], data["closes"][-1])
+
 current_price = data["closes"][-1]
 price_diff = current_price - data["opens"][0]
 diff_percent = (price_diff / data["opens"][0]) * 100
 
-# 3. Haupt-UI Layout
+# 3. Haupt-Layout
 st.title(f"Terminal // {selected_market}")
 st.markdown(f"Kategorie: **{asset_class}** | Status: **{status_text}**")
 
@@ -110,109 +105,87 @@ col3.metric("Ausgewählter Asset", selected_market, "Aktiv")
 
 st.divider()
 
-# 4. Ansichten mit fehlerfreier Fragment-Logik
+# 4. Ansichten (Fehlerfrei & Ohne Flashen)
 if "Chart" in view_mode:
-    @st.fragment(run_every=1.0)
-    def render_live_chart():
-        tick_change = np.random.randn() * (base_price * 0.0002)
-        data["closes"][-1] += tick_change
-        data["highs"][-1] = max(data["highs"][-1], data["closes"][-1])
-        data["lows"][-1] = min(data["lows"][-1], data["closes"][-1])
-        
-        cur_p = data["closes"][-1]
-        p_diff = cur_p - data["opens"][0]
-        p_pct = (p_diff / data["opens"][0]) * 100
+    st.subheader(f"📈 Candlestick Chart — {selected_market}")
+    
+    fig_candle = go.Figure(data=[go.Candlestick(
+        x=data["times"],
+        open=data["opens"],
+        high=data["highs"],
+        low=data["lows"],
+        close=data["closes"]
+    )])
+    
+    fig_candle.update_layout(
+        template="plotly_dark",
+        title=f"Echtzeit-Kursverlauf ({selected_market})",
+        xaxis_rangeslider_visible=True,
+        height=600,
+        margin=dict(l=20, r=50, b=20, t=50)
+    )
+    # Sauber getrennte Achsenkonfiguration (verhindert den ValueError)
+    fig_candle.update_yaxes(side="right", tickformat=",.2f")
+    
+    # Live-Preis Badge rechts oben im Chart
+    fig_candle.add_annotation(
+        text=f"{selected_market}: ${current_price:,.2f} ({diff_percent:+.2f}%)",
+        xref="paper", yref="paper",
+        x=0.98, y=0.95,
+        showarrow=False,
+        font=dict(size=16, color="orange", family="Arial Black"),
+        bgcolor="rgba(0,0,0,0.8)",
+        bordercolor="gray",
+        borderwidth=1
+    )
 
-        fig_candle = go.Figure(data=[go.Candlestick(
-            x=data["times"],
-            open=data["opens"],
-            high=data["highs"],
-            low=data["lows"],
-            close=data["closes"]
-        )])
-        
-        fig_candle.update_layout(
-            template="plotly_dark",
-            title=dict(
-                text=f"Echtzeit-Kursverlauf ({selected_market})",
-                font=dict(color="white", size=16)
-            ),
-            xaxis_rangeslider_visible=True,
-            xaxis=dict(backgroundcolor="black", gridcolor="gray"),
-            yaxis=dict(backgroundcolor="black", gridcolor="gray", side="right"), # Preis-Skala rechts
-            autosize=True,
-            height=650,
-            margin=dict(l=20, r=20, b=20, t=50)
-        )
-        
-        fig_candle.add_annotation(
-            text=f"{selected_market}: ${cur_p:,.2f} ({p_pct:+.2f}%)",
-            xref="paper", yref="paper",
-            x=0.98, y=0.95,
-            showarrow=False,
-            font=dict(size=16, color="orange", family="Arial Black"),
-            align="right",
-            bgcolor="rgba(0,0,0,0.7)",
-            bordercolor="gray",
-            borderwidth=1
-        )
-
-        st.plotly_chart(
-            fig_candle, 
-            use_container_width=True, 
-            config={'scrollZoom': True, 'displayModeBar': True},
-            key="candlestick_chart_unique"
-        )
-        st.caption("ℹ️ TradingView-Style: Scrolle mit dem Mausrad zum Zoomen, verschiebe den Ausschnitt oder nutze den Range-Slider.")
-
-    render_live_chart()
+    st.plotly_chart(
+        fig_candle, 
+        use_container_width=True, 
+        config={'scrollZoom': True, 'displayModeBar': True},
+        key="candlestick_stable_chart"
+    )
+    st.caption("ℹ️ TradingView-Style: Scrolle mit dem Mausrad zum Zoomen, verschiebe den Ausschnitt oder nutze den Range-Slider.")
 
 else:
-    @st.fragment(run_every=0.3)
-    def render_animated_3d():
-        x = np.linspace(-3.0, 3.0, 35)
-        y = np.linspace(-3.0, 3.0, 35)
-        X, Y = np.meshgrid(x, y)
-        
-        # Animierte Volatilität, streng >= 0
-        phase = datetime.now().timestamp() * 2
-        R = np.sqrt(X**2 + Y**2)
-        Z = 0.4 + 0.05 * (X**2 + Y**2) + 0.1 * np.cos(R - phase * 0.5)
-        Z = np.maximum(Z, 0.01)
-        
-        fig_3d = go.Figure(data=[go.Surface(z=Z, x=X, y=Y, colorscale='Viridis')])
-        fig_3d.update_layout(
-            template="plotly_dark",
-            title=dict(
-                text=f"{selected_market} – 3D Surface Chart [ANIMIERT]",
-                font=dict(color="white", size=16)
-            ),
-            autosize=True,
-            height=650,
-            margin=dict(l=10, r=10, b=10, t=50),
-            scene=dict(
-                xaxis_title='Strike Price',
-                yaxis_title='Time',
-                zaxis=dict(title='Volatility', backgroundcolor="black", gridcolor="gray", range=[0, 1.5]),
-                xaxis=dict(backgroundcolor="black", gridcolor="gray"),
-                yaxis=dict(backgroundcolor="black", gridcolor="gray")
-            )
+    st.subheader(f"🧊 3D Surface Chart — {selected_market}")
+    
+    x = np.linspace(-3.0, 3.0, 35)
+    y = np.linspace(-3.0, 3.0, 35)
+    X, Y = np.meshgrid(x, y)
+    
+    # Stabile 3D-Oberfläche (garantiert über 0)
+    R = np.sqrt(X**2 + Y**2)
+    Z = 0.4 + 0.05 * (X**2 + Y**2) + 0.1 * np.cos(R)
+    Z = np.maximum(Z, 0.05)
+    
+    fig_3d = go.Figure(data=[go.Surface(z=Z, x=X, y=Y, colorscale='Viridis')])
+    
+    fig_3d.update_layout(
+        template="plotly_dark",
+        title=f"{selected_market} – 3D Volatility Surface",
+        height=600,
+        margin=dict(l=10, r=10, b=10, t=50),
+        scene=dict(
+            xaxis_title='Strike Price',
+            yaxis_title='Time',
+            zaxis_title='Volatility',
+            zaxis=dict(range=[0, 1.5])
         )
-        
-        fig_3d.add_annotation(
-            text=f"{selected_market}: ${current_price:,.2f}",
-            xref="paper", yref="paper",
-            x=0.02, y=0.92,
-            showarrow=False,
-            font=dict(size=18, color="orange", family="Arial Black")
-        )
-        
-        st.plotly_chart(
-            fig_3d, 
-            use_container_width=True,
-            config={'scrollZoom': True, 'displayModeBar': True},
-            key="surface_3d_unique"
-        )
-        st.caption("ℹ️ Das 3D-Modell bewegt sich fließend, bleibt stabil im Layout und lässt sich frei mit der Maus drehen.")
-
-    render_animated_3d()
+    )
+    
+    fig_3d.add_annotation(
+        text=f"{selected_market}: ${current_price:,.2f}",
+        xref="paper", yref="paper",
+        x=0.02, y=0.92,
+        showarrow=False,
+        font=dict(size=18, color="orange", family="Arial Black")
+    )
+    
+    st.plotly_chart(
+        fig_3d, 
+        use_container_width=True,
+        config={'scrollZoom': True, 'displayModeBar': True},
+        key="surface_3d_stable_chart"
+    )
+    st.caption("ℹ️ Das 3D-Modell ist absolut stabil, flackert nicht und lässt sich frei mit der Maus drehen und zoomen.")
