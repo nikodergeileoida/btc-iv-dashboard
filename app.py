@@ -27,7 +27,7 @@ asset_class = st.sidebar.selectbox(
 # Dynamische Marktauswahl & realistische Basispreise
 if asset_class == "Kryptowährungen":
     market_list = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT"]
-    base_price = 65000.0
+    base_price = 64255.58
     market_type = "crypto"
 elif asset_class == "US-Märkte":
     market_list = ["S&P 500 (SPY)", "Nasdaq (QQQ)", "Apple (AAPL)", "Tesla (TSLA)", "NVIDIA (NVDA)"]
@@ -88,14 +88,7 @@ if "market_data" not in st.session_state or st.session_state.get("current_market
     }
     st.session_state.current_market = selected_market
 
-# Live-Tick auf die letzte Kerze anwenden
 data = st.session_state.market_data
-latest_close = data["closes"][-1]
-tick_change = np.random.randn() * (base_price * 0.0002)
-data["closes"][-1] = latest_close + tick_change
-data["highs"][-1] = max(data["highs"][-1], data["closes"][-1])
-data["lows"][-1] = min(data["lows"][-1], data["closes"][-1])
-
 current_price = data["closes"][-1]
 price_diff = current_price - data["opens"][0]
 diff_percent = (price_diff / data["opens"][0]) * 100
@@ -111,43 +104,88 @@ col3.metric("Ausgewählter Asset", selected_market, "Aktiv")
 
 st.divider()
 
-# Ansichten-Umschaltung ohne Flashen
+# Ansichten-Umschaltung mit flüssigen Fragmenten
 if "Chart" in view_mode:
-    st.subheader(f"📈 Live Candlestick Chart — {selected_market}")
-    
-    fig_candle = go.Figure(data=[go.Candlestick(
-        x=data["times"],
-        open=data["opens"],
-        high=data["highs"],
-        low=data["lows"],
-        close=data["closes"]
-    )])
-    fig_candle.update_layout(
-        title=f"Echtzeit-Kursverlauf ({selected_market})",
-        xaxis_rangeslider_visible=False,
-        height=520,
-        margin=dict(l=20, r=20, b=20, t=40)
-    )
-    st.plotly_chart(fig_candle, use_container_width=True)
-    st.caption("ℹ️ Die historische Kursstruktur bleibt stabil, während sich die rechte Live-Kerze in Echtzeit anpasst.")
+    @st.fragment(run_every=1.0)
+    def render_live_chart():
+        tick_change = np.random.randn() * (base_price * 0.0002)
+        data["closes"][-1] += tick_change
+        data["highs"][-1] = max(data["highs"][-1], data["closes"][-1])
+        data["lows"][-1] = min(data["lows"][-1], data["closes"][-1])
+        
+        st.subheader(f"📈 Live Candlestick Chart — {selected_market}")
+        
+        fig_candle = go.Figure(data=[go.Candlestick(
+            x=data["times"],
+            open=data["opens"],
+            high=data["highs"],
+            low=data["lows"],
+            close=data["closes"]
+        )])
+        fig_candle.update_layout(
+            title=f"Echtzeit-Kursverlauf ({selected_market})",
+            xaxis_rangeslider_visible=True,
+            height=520,
+            margin=dict(l=20, r=20, b=20, t=40)
+        )
+        st.plotly_chart(
+            fig_candle, 
+            use_container_width=True, 
+            config={'scrollZoom': True, 'displayModeBar': True}
+        )
+        st.caption("ℹ️ TradingView-Style: Scrolle mit dem Mausrad zum Zoomen oder nutze den Range-Slider am Boden.")
+
+    render_live_chart()
 
 else:
-    st.subheader(f"🧊 3D Volatilitäts-Oberfläche — {selected_market}")
-    
-    # Enges, sauberes Gitter für den 3D-Volatilitäts-Smile
-    x = np.linspace(-1.0, 1.0, 35)
-    y = np.linspace(0.1, 1.0, 35)
-    X, Y = np.meshgrid(x, y)
-    
-    # Sanfte 3D-Oberfläche
-    Z = np.sin(X) * np.cos(Y) + (X**2) * 0.5 + 2.0
-    
-    fig = go.Figure(data=[go.Surface(z=Z, x=X, y=Y, colorscale='Viridis')])
-    fig.update_layout(
-        title=f"3D Volatility Smile — {selected_market}",
-        autosize=True,
-        height=550,
-        margin=dict(l=10, r=10, b=10, t=30)
-    )
-    st.plotly_chart(fig, use_container_width=True)
-    st.caption("ℹ️ Tipp: Du kannst die 3D-Oberfläche mit der Maus frei drehen und heranzoomen.")
+    @st.fragment(run_every=0.1)
+    def render_3d_surface():
+        st.subheader(f"🧊 3D Surface Chart — {selected_market}")
+        
+        # Exakte Gitterstruktur von -3 bis 3 wie im Screenshot
+        x = np.linspace(-3.0, 3.0, 40)
+        y = np.linspace(-3.0, 3.0, 40)
+        X, Y = np.meshgrid(x, y)
+        
+        # Dynamische Wellenform mit Animation
+        phase = datetime.now().timestamp() * 3
+        R = np.sqrt(X**2 + Y**2) + 1e-5
+        Z = np.sin(R + phase * 0.2) / (R * 0.5 + 1.0)
+        
+        fig = go.Figure(data=[go.Surface(z=Z, x=X, y=Y, colorscale='Viridis')])
+        fig.update_layout(
+            template="plotly_dark",
+            title=dict(
+                text=f"{selected_market} – 3D Surface Chart [LIVE]",
+                font=dict(color="white", size=16)
+            ),
+            autosize=True,
+            height=600,
+            margin=dict(l=10, r=10, b=10, t=50),
+            scene=dict(
+                xaxis_title='Strike Price',
+                yaxis_title='Time',
+                zaxis=dict(title=''),
+                xaxis=dict(backgroundcolor="black", gridcolor="gray"),
+                yaxis=dict(backgroundcolor="black", gridcolor="gray"),
+                zaxis_dict=dict(backgroundcolor="black", gridcolor="gray")
+            )
+        )
+        
+        # Preis-Anzeige exakt wie im Screenshot oben links in Orange
+        fig.add_annotation(
+            text=f"{selected_market}: ${current_price:,.2f}",
+            xref="paper", yref="paper",
+            x=0.02, y=0.92,
+            showarrow=False,
+            font=dict(size=18, color="orange", family="Arial Black")
+        )
+        
+        st.plotly_chart(
+            fig, 
+            use_container_width=True,
+            config={'scrollZoom': True, 'displayModeBar': True}
+        )
+        st.caption("ℹ️ Das 3D-Modell bewegt sich fließend in Echtzeit und lässt sich komplett mit der Maus drehen und zoomen.")
+
+    render_3d_surface()
