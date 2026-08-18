@@ -128,17 +128,19 @@ if "Chart" in view_mode:
             height=520,
             margin=dict(l=20, r=20, b=20, t=40)
         )
+        # Wichtig: key verhindert das Flackern beim Update
         st.plotly_chart(
             fig_candle, 
             use_container_width=True, 
-            config={'scrollZoom': True, 'displayModeBar': True}
+            config={'scrollZoom': True, 'displayModeBar': True},
+            key="candlestick_live_chart"
         )
         st.caption("ℹ️ TradingView-Style: Scrolle mit dem Mausrad zum Zoomen oder nutze den Range-Slider am Boden.")
 
     render_live_chart()
 
 else:
-    @st.fragment(run_every=0.15)
+    @st.fragment(run_every=0.4)
     def render_animated_3d():
         st.subheader(f"🧊 3D Surface Chart — {selected_market}")
         
@@ -181,11 +183,13 @@ else:
             font=dict(size=18, color="orange", family="Arial Black")
         )
         
+        # Wichtig: key verhindert das Flackern des 3D-Modells
         st.plotly_chart(
             fig, 
             use_container_width=True,
-            config={'scrollZoom': True, 'displayModeBar': True}
+            config={'scrollZoom': True, 'displayModeBar': True},
+            key="surface_3d_live_chart"
         )
-        st.caption("ℹ️ Das 3D-Modell bewegt sich fließend in Echtzeit, flackert nicht und die Werte bleiben physikalisch korrekt über 0.")
+        st.caption("ℹ️ Das 3D-Modell bewegt sich fließend, bleibt absolut stabil ohne Flashen und lässt sich frei mit der Maus drehen.")
 
     render_animated_3d()
