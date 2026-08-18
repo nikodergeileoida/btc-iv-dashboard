@@ -6,7 +6,7 @@ import pandas as pd
 import time
 
 # 1. Page Config & Ultra Dark Cyberpunk Theme
-st.set_page_config(page_title="BTC Cyber Terminal v3", layout="wide")
+st.set_page_config(page_title="BTC Cyber Terminal v4", layout="wide")
 
 st.markdown("""
     <style>
@@ -70,7 +70,7 @@ st.markdown("""
 # 2. Admin Passwort
 ADMIN_PASSWORD = "niko2002"
 
-# 3. Realtime Ticker Banner (1s Web Feed)
+# 3. Realtime Ticker Banner
 btc_header_html = """
 <div id="ticker-card" style="
     background: linear-gradient(135deg, #071018 0%, #020508 100%);
@@ -123,8 +123,24 @@ components.html(btc_header_html, height=90)
 st.sidebar.markdown("### ⚙️ Terminal Navigation")
 view_mode = st.sidebar.radio(
     "Visualisierung wählen:", 
-    ["3D Wireframe Grid (No Lag)", "Live Kerzenchart", "Put/Call Skew Radar (NEU)", "2D Heatmap", "Volatility Smiles"]
+    ["3D Modell (Surface / Grid)", "Live Kerzenchart", "Put/Call Skew Radar", "2D Heatmap", "Volatility Smiles"]
 )
+
+# Spezifische 3D-Einstellungen nur anzeigen, wenn 3D gewählt ist
+if view_mode == "3D Modell (Surface / Grid)":
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 🧊 3D Modus Option")
+    three_d_style = st.sidebar.radio(
+        "3D Stil wählen:",
+        ["Wireframe Grid (Neon Net)", "Solid Surface (3D Fläche)"]
+    )
+    colorscale_choice = st.sidebar.selectbox(
+        "Farb-Palette (nur bei Surface):",
+        ["Electric", "Turbo", "Plasma", "Viridis"]
+    )
+    auto_rotate = st.sidebar.checkbox("3D Orbit Auto-Rotation", value=False)
+else:
+    auto_rotate = False
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🔑 Admin Login")
@@ -150,9 +166,7 @@ if "PRO" in update_rate:
             </div>
         """, unsafe_allow_html=True)
 
-auto_rotate = st.sidebar.checkbox("3D Orbit Auto-Rotation", value=True)
-
-# 5. Data Fetcher für Deribit
+# 5. Data Fetcher
 @st.cache_data(ttl=10)
 def get_deribit_iv_data():
     url = "https://www.deribit.com/api/v2/public/get_book_summary_by_currency?currency=BTC&kind=option"
@@ -166,7 +180,7 @@ def get_deribit_iv_data():
 def get_btc_candles():
     try:
         end_ts = int(time.time() * 1000)
-        start_ts = end_ts - (120 * 60 * 1000) # 2 Stunden History
+        start_ts = end_ts - (120 * 60 * 1000)
         url = f"https://www.deribit.com/api/v2/public/get_tradingview_chart_data?instrument_name=BTC-PERPETUAL&start_timestamp={start_ts}&end_timestamp={end_ts}&resolution=1"
         res = requests.get(url, timeout=5).json()
         data = res.get("result", {})
@@ -182,7 +196,7 @@ def get_btc_candles():
         pass
     return pd.DataFrame()
 
-# 6. Kerzenchart Render (Verlässlicher Python + Plotly Stream)
+# 6. Live Kerzenchart Render
 if view_mode == "Live Kerzenchart":
     candles_df = get_btc_candles()
     if not candles_df.empty:
@@ -204,19 +218,19 @@ if view_mode == "Live Kerzenchart":
                 paper_bgcolor: '#020408',
                 plot_bgcolor: '#020408',
                 font: {{ color: '#00F3FF' }},
-                title: 'BTC-PERPETUAL 1m Realtime Candlestick Chart',
+                title: 'BTC-PERPETUAL Realtime Candlestick Chart',
                 xaxis: {{ gridcolor: '#0D1622', rangeslider: {{visible: false}} }},
                 yaxis: {{ gridcolor: '#0D1622' }},
                 margin: {{ l: 50, r: 20, b: 40, t: 40 }}
             }};
-            Plotly.react('plotly-candle', [trace], layout, {{responsive: true, displayModeBar: false}});
+            Plotly.react('plotly-candle', [trace], layout, {{responsive: true, displayModeBar: true, scrollZoom: true}});
         </script>
         """
         components.html(candlestick_html, height=700)
     else:
         st.warning("Lade Live-Kerzen von Deribit...")
 
-# 7. Options & 3D Wireframe Render Engine
+# 7. Options & 3D Render
 else:
     raw_data = get_deribit_iv_data()
     if raw_data:
@@ -227,7 +241,7 @@ else:
                 parsed.append({
                     "expiry": parts[1], 
                     "strike": float(parts[2]), 
-                    "type": parts[3], # P oder C
+                    "type": parts[3],
                     "iv": item["mark_iv"]
                 })
 
@@ -248,8 +262,8 @@ else:
             with m4:
                 st.markdown(f'<div class="metric-card"><div class="metric-title">Options Kontrakte</div><div class="metric-value">{len(df)}</div></div>', unsafe_allow_html=True)
 
-            # Ultra-High-FPS 3D Pure Wireframe Grid
-            if view_mode == "3D Wireframe Grid (No Lag)":
+            # 3D MODELL RENDER (WIRE FRAME vs SOLID SURFACE)
+            if view_mode == "3D Modell (Surface / Grid)":
                 rotate_js = """
                 var r = 1.35; var theta = 0;
                 setInterval(function(){
@@ -257,6 +271,25 @@ else:
                     Plotly.relayout('plotly-surface', { 'scene.camera.eye': { x: r * Math.cos(theta), y: r * Math.sin(theta), z: 0.75 } });
                 }, 30);
                 """ if auto_rotate else ""
+
+                if three_d_style == "Wireframe Grid (Neon Net)":
+                    surface_config = "hidesurface: true,"
+                    contours_config = """
+                        contours: {
+                            x: { show: true, color: '#00F3FF', width: 2 },
+                            y: { show: true, color: '#FF0055', width: 2 },
+                            z: { show: true, color: '#00FF66', width: 2 }
+                        },
+                    """
+                    colorscale_script = "colorscale: 'Electric',"
+                else: # Solid Surface
+                    surface_config = "hidesurface: false,"
+                    contours_config = """
+                        contours: {
+                            z: { show: true, usecolormap: true, highlightcolor: "#00F3FF", project: { z: true } }
+                        },
+                    """
+                    colorscale_script = f"colorscale: '{colorscale_choice}',"
 
                 plotly_html = f"""
                 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
@@ -267,12 +300,10 @@ else:
                         y: {json.dumps(strikes)},
                         z: {json.dumps(z_values)},
                         type: 'surface',
-                        hidesurface: true, // DEAKTIVIERT DIE SURFACE FÜR 100% NO-LAG GRID
-                        contours: {{
-                            x: {{ show: true, color: '#00F3FF', width: 2 }},
-                            y: {{ show: true, color: '#FF0055', width: 2 }},
-                            z: {{ show: true, color: '#00FF66', width: 2 }}
-                        }}
+                        {surface_config}
+                        {colorscale_script}
+                        {contours_config}
+                        lighting: {{ ambient: 0.5, diffuse: 0.8, specular: 1.5, roughness: 0.2 }}
                     }}];
                     var layout = {{
                         paper_bgcolor: '#020408',
@@ -288,14 +319,14 @@ else:
                             camera: {{ eye: {{ x: 0.95, y: 0.95, z: 0.65 }} }}
                         }}
                     }};
-                    Plotly.react('plotly-surface', data, layout, {{responsive: true, displayModeBar: false}});
+                    Plotly.react('plotly-surface', data, layout, {{responsive: true, displayModeBar: true, scrollZoom: true}});
                     {rotate_js}
                 </script>
                 """
                 components.html(plotly_html, height=670)
 
-            # NEUES FEATURE: Put/Call Skew Radar
-            elif view_mode == "Put/Call Skew Radar (NEU)":
+            # Put/Call Skew Radar
+            elif view_mode == "Put/Call Skew Radar":
                 puts_avg = df[df['type'] == 'P']['iv'].mean()
                 calls_avg = df[df['type'] == 'C']['iv'].mean()
                 skew = puts_avg - calls_avg
@@ -327,7 +358,7 @@ else:
                         font: {{ color: '#00F3FF' }},
                         margin: {{ l: 50, r: 50, b: 50, t: 50 }}
                     }};
-                    Plotly.react('plotly-skew', data, layout, {{responsive: true, displayModeBar: false}});
+                    Plotly.react('plotly-skew', data, layout, {{responsive: true, displayModeBar: true, scrollZoom: true}});
                 </script>
                 """
                 components.html(plotly_html, height=670)
@@ -353,7 +384,7 @@ else:
                         yaxis: {{ title: 'Strike ($)', gridcolor: '#0D1622' }},
                         margin: {{ l: 60, r: 20, b: 60, t: 20 }}
                     }};
-                    Plotly.react('plotly-heatmap', data, layout, {{responsive: true, displayModeBar: false}});
+                    Plotly.react('plotly-heatmap', data, layout, {{responsive: true, displayModeBar: true, scrollZoom: true}});
                 </script>
                 """
                 components.html(plotly_html, height=670)
@@ -374,7 +405,7 @@ else:
                         yaxis: {{ title: 'IV (%)', gridcolor: '#0D1622' }},
                         margin: {{ l: 60, r: 20, b: 60, t: 20 }}
                     }};
-                    Plotly.react('plotly-smiles', data, layout, {{responsive: true, displayModeBar: false}});
+                    Plotly.react('plotly-smiles', data, layout, {{responsive: true, displayModeBar: true, scrollZoom: true}});
                 </script>
                 """
                 components.html(plotly_html, height=670)
