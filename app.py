@@ -55,7 +55,7 @@ def get_market_status():
 
 status_text, status_flag = get_market_status()
 
-# Session State für stabile Daten (kein ungewolltes Zurücksetzen)
+# Session State für stabile Kursdaten
 if "market_data" not in st.session_state or st.session_state.get("current_market") != selected_market:
     np.random.seed(sum(map(ord, selected_market)))
     timestamps = [datetime.now() - timedelta(minutes=i) for i in range(40, 0, -1)]
@@ -98,7 +98,7 @@ col3.metric("Ausgewählter Asset", selected_market, "Aktiv")
 
 st.divider()
 
-# 4. Ansichten (100% flackerfrei, da ohne erzwungene Timer-Loops)
+# 4. Ansichten
 if "Chart" in view_mode:
     st.subheader(f"📈 Candlestick Chart — {selected_market}")
     
@@ -114,11 +114,11 @@ if "Chart" in view_mode:
         template="plotly_dark",
         title=f"Echtzeit-Kursverlauf ({selected_market})",
         xaxis_rangeslider_visible=True,
+        dragmode='pan',  # Exakt wie TradingView: Ziehen verschiebt den Chart, kein Zoom-Kasten!
         height=600,
         margin=dict(l=20, r=50, b=20, t=50)
     )
     
-    # Achsen konfigurieren: Scroll-Zoom aktiv, Achsen frei veränderbar (fixedrange=False)
     fig_candle.update_yaxes(side="right", tickformat=",.2f", fixedrange=False)
     fig_candle.update_xaxes(fixedrange=False)
     
@@ -137,40 +137,77 @@ if "Chart" in view_mode:
         fig_candle, 
         use_container_width=True, 
         config={'scrollZoom': True, 'displayModeBar': True},
-        key="candlestick_rocksolid_chart"
+        key="candlestick_final_v2"
     )
-    st.caption("ℹ️ **Bedienung:** Scrolle mit dem Mausrad zum Zoomen. **Klicke und ziehe direkt an den Zahlen der Skala rechts oder unten**, um den Chart stufenlos zu stretchen oder zu komprimieren.")
+    st.caption("ℹ️ **TradingView-Modus:** Klicken & Ziehen verschiebt den Chart. Mausrad zoomt. Ziehe direkt an den Skalenzahlen zum Stretchen.")
 
 else:
     st.subheader(f"🧊 3D Volatility Surface — {selected_market}")
     
-    x = np.linspace(-3.0, 3.0, 35)
-    y = np.linspace(-3.0, 3.0, 35)
+    # Generierung von Client-Side Frames für flüssige, flackerfreie Bewegung
+    x = np.linspace(-3.0, 3.0, 30)
+    y = np.linspace(-3.0, 3.0, 30)
     X, Y = np.meshgrid(x, y)
     
-    # Stabile 3D-Oberfläche (Volatilität strikt >= 0)
-    R = np.sqrt(X**2 + Y**2)
-    Z = 0.5 + 0.1 * (X**2 + Y**2) + 0.15 * np.cos(R)
-    Z = np.maximum(Z, 0.05)
-    
-    fig_3d = go.Figure(data=[go.Surface(z=Z, x=X, y=Y, colorscale='Viridis')])
+    frames = []
+    num_frames = 25
+    for i in range(num_frames):
+        phase = i * (2 * np.pi / num_frames)
+        R = np.sqrt(X**2 + Y**2)
+        Z = 0.5 + 0.1 * (X**2 + Y**2) + 0.15 * np.cos(R - phase)
+        Z = np.maximum(Z, 0.05)
+        frames.append(go.Frame(data=[go.Surface(z=Z, x=X, y=Y)], name=f"f{i}"))
+
+    R0 = np.sqrt(X**2 + Y**2)
+    Z0 = 0.5 + 0.1 * (X**2 + Y**2) + 0.15 * np.cos(R0)
+    Z0 = np.maximum(Z0, 0.05)
+
+    fig_3d = go.Figure(
+        data=[go.Surface(z=Z0, x=X, y=Y, colorscale='Viridis')],
+        frames=frames
+    )
     
     fig_3d.update_layout(
         template="plotly_dark",
         height=600,
         margin=dict(l=10, r=10, b=10, t=30),
+        updatemenus=[{
+            "type": "buttons",
+            "showactive": False,
+            "x": 0.05,
+            "y": 1.12,
+            "buttons": [{
+                "label": "▶ Animation starten",
+                "method": "animate",
+                "args": [
+                    None,
+                    {
+                        "frame": {"duration": 60, "redraw": True},
+                        "fromcurrent": True,
+                        "mode": "immediate",
+                        "transition": {"duration": 60, "easing": "linear"},
+                        "loop": True
+                    }
+                ]
+            }, {
+                "label": "⏸ Pause",
+                "method": "animate",
+                "args": [[None], {"frame": {"duration": 0, "redraw": False}, "mode": "immediate"}]
+            }]
+        }],
         scene=dict(
             xaxis_title='Strike Price',
             yaxis_title='Time',
             zaxis_title='Volatility',
             zaxis=dict(range=[0, 1.5], backgroundcolor="black", gridcolor="gray"),
             xaxis=dict(backgroundcolor="black", gridcolor="gray"),
-            yaxis=dict(backgroundcolor="black", gridcolor="gray")
+            yaxis=dict(backgroundcolor="black", gridcolor="gray"),
+            camera=dict(eye=dict(x=1.5, y=-1.5, z=1.2))
         )
     )
     
     fig_3d.add_annotation(
-        text=f"{selected_market}: ${current_price:,.2f}",
+        text=f"{selected_market}: ${current_price:,.2f} ({diff_percent:+.2f}%)",
         xref="paper", yref="paper",
         x=0.02, y=0.92,
         showarrow=False,
@@ -181,6 +218,6 @@ else:
         fig_3d, 
         use_container_width=True,
         config={'scrollZoom': True, 'displayModeBar': True},
-        key="surface_3d_rocksolid_chart"
+        key="surface_3d_final_v2"
     )
-    st.caption("ℹ️ **Bedienung:** Das 3D-Modell ist absolut stabil, flackert null und lässt sich frei mit der Maus drehen und zoomen.")
+    st.caption("ℹ️ **3D-Modell:** Klicke einmal auf **▶ Animation starten**, damit sich die Oberfläche permanent und flackerfrei bewegt. Du kannst die Ansicht währenddessen jederzeit mit der Maus frei drehen und zoomen!")
