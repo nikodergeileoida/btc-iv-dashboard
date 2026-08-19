@@ -15,7 +15,11 @@ st.sidebar.title("⚡ Terminal Control")
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 👁️ Ansicht")
-view_mode = st.sidebar.radio("Modus wählen:", ["📈 TradingView Live-Terminal", "🧊 Quanten-Membran (Matt & Butter-Smooth)"])
+view_mode = st.sidebar.radio("Modus wählen:", [
+    "📈 TradingView Live-Terminal", 
+    "🧊 Quanten-Membran (Matt)", 
+    "⚡ Beide nebeneinander (Split-View)"
+])
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🌍 Märkte")
@@ -77,178 +81,162 @@ col3.metric("Modus", view_mode, "Aktiv")
 
 st.divider()
 
-# 4. Ansichten (TradingView Chart vs. 3D Quanten-Membran)
-if "TradingView" in view_mode:
-    st.subheader(f"📈 TradingView Live-Terminal — {selected_market}")
-
+# Hilfsfunktionen für die Widgets
+def get_tradingview_html(symbol):
     tv_symbol_map = {
-        "BTC-USD": "BINANCE:BTCUSDT",
-        "ETH-USD": "BINANCE:ETHUSDT",
-        "SOL-USD": "BINANCE:SOLUSDT",
-        "BNB-USD": "BINANCE:BNBUSDT",
-        "XRP-USD": "BINANCE:XRPUSDT",
-        "SPY": "AMEX:SPY",
-        "QQQ": "NASDAQ:QQQ",
-        "AAPL": "NASDAQ:AAPL",
-        "TSLA": "NASDAQ:TSLA",
-        "NVIDIA": "NASDAQ:NVDA",
-        "^GDAXI": "XETR:DAX",
-        "SAP.DE": "XETR:SAP",
-        "SIE.DE": "XETR:SIE",
-        "ALV.DE": "XETR:ALV",
-        "GC=F": "COMEX:GC1!",
-        "SI=F": "NYMEX:SI1!",
-        "CL=F": "NYMEX:CL1!",
-        "EURUSD=X": "FX_IDC:EURUSD"
+        "BTC-USD": "BINANCE:BTCUSDT", "ETH-USD": "BINANCE:ETHUSDT", "SOL-USD": "BINANCE:SOLUSDT",
+        "BNB-USD": "BINANCE:BNBUSDT", "XRP-USD": "BINANCE:XRPUSDT", "SPY": "AMEX:SPY",
+        "QQQ": "NASDAQ:QQQ", "AAPL": "NASDAQ:AAPL", "TSLA": "NASDAQ:TSLA", "NVIDIA": "NASDAQ:NVDA",
+        "^GDAXI": "XETR:DAX", "SAP.DE": "XETR:SAP", "SIE.DE": "XETR:SIE", "ALV.DE": "XETR:ALV",
+        "GC=F": "COMEX:GC1!", "SI=F": "NYMEX:SI1!", "CL=F": "NYMEX:CL1!", "EURUSD=X": "FX_IDC:EURUSD"
     }
-    
-    tv_symbol = tv_symbol_map.get(ticker_symbol, "BINANCE:BTCUSDT")
-
-    # Perfekt auf Screenshot-Größe optimiert (kein nerviges Scrollen mehr)
-    tv_widget_html = f"""
+    tv_symbol = tv_symbol_map.get(symbol, "BINANCE:BTCUSDT")
+    return f"""
     <!DOCTYPE html>
     <html>
-    <head>
-        <style>
-            html, body {{ margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; }}
-            .tradingview-widget-container {{ width: 100%; height: 100%; }}
-        </style>
-    </head>
+    <head><style>html, body {{ margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; }} .tradingview-widget-container {{ width: 100%; height: 100%; }}</style></head>
     <body>
         <div class="tradingview-widget-container">
           <div class="tradingview-widget-container__widget" style="height:100%;width:100%"></div>
           <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
           {{
-            "autosize": true,
-            "symbol": "{tv_symbol}",
-            "interval": "D",
-            "timezone": "Etc/UTC",
-            "theme": "dark",
-            "style": "1",
-            "locale": "de",
-            "enable_publishing": false,
-            "hide_top_toolbar": false,
-            "hide_legend": false,
-            "save_image": false,
-            "calendar": false,
-            "support_host": "https://www.tradingview.com"
+            "autosize": true, "symbol": "{tv_symbol}", "interval": "D", "timezone": "Etc/UTC",
+            "theme": "dark", "style": "1", "locale": "de", "enable_publishing": false,
+            "hide_top_toolbar": false, "hide_legend": false, "save_image": false, "calendar": false, "support_host": "https://www.tradingview.com"
           }}
           </script>
         </div>
     </body>
     </html>
     """
-    
-    components.html(tv_widget_html, height=620, scrolling=False)
 
-else:
-    st.subheader(f"🧊 Quanten-Membran (Matt & Butter-Smooth) — {selected_market}")
-    
-    if df_data is not None and len(df_data) > 1:
-        try:
-            volatility_factor = float((df_data['High'].max() - df_data['Low'].min()) / base_price * 50)
-            volatility_factor = max(0.5, min(volatility_factor, 3.0))
-        except Exception:
-            volatility_factor = 1.0
-    else:
-        volatility_factor = 1.0
-
-    raw_surface_html = """
+def get_quantum_html(market_name, price, vol_num, vol_str):
+    return f"""
     <!DOCTYPE html>
     <html>
     <head>
         <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
         <style>
-            body { margin: 0; background: #000000; overflow: hidden; }
-            #plotly-div { width: 100%; height: 600px; }
-            .market-badge {
+            body {{ margin: 0; background: #000000; overflow: hidden; }}
+            #plotly-div {{ width: 100%; height: 600px; }}
+            .controls-overlay {{
                 position: absolute; top: 10px; left: 15px; z-index: 100;
-                font-family: Arial Black, sans-serif; font-size: 15px; color: orange;
+                display: flex; gap: 10px; align-items: center;
+            }}
+            .market-badge {{
+                font-family: Arial Black, sans-serif; font-size: 13px; color: orange;
                 background: rgba(0,0,0,0.9); padding: 5px 10px; border: 1px solid #333; border-radius: 4px;
-            }
+            }}
+            .fs-btn {{
+                font-family: Arial, sans-serif; font-size: 12px; color: #fff;
+                background: rgba(30,30,30,0.9); padding: 6px 10px; border: 1px solid #555; border-radius: 4px;
+                cursor: pointer; transition: background 0.2s;
+            }}
+            .fs-btn:hover {{ background: rgba(50,50,50,1); border-color: orange; }}
         </style>
     </head>
     <body>
-        <div class="market-badge">MARKET_PLACEHOLDER: $PRICE_PLACEHOLDER (Vol: VOL_PLACEHOLDER)</div>
+        <div class="controls-overlay">
+            <div class="market-badge">{market_name}: ${price} (Vol: {vol_str})</div>
+            <button class="fs-btn" onclick="toggleFullscreen()">⛶ Fullscreen</button>
+        </div>
         <div id="plotly-div"></div>
         <script>
-            const n = 50;
-            const vol = VOL_PLACEHOLDER_NUM;
+            function toggleFullscreen() {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(err => {{}});
+                } else {
+                    if (document.exitFullscreen) {{ document.exitFullscreen(); }}
+                }
+            }
 
-            function getSurface(frame) {
+            const n = 50;
+            const vol = {vol_num};
+
+            function getSurface(frame) {{
                 let x = [], y = [], z = [];
-                for (let i = 0; i < n; i++) {
+                for (let i = 0; i < n; i++) {{
                     let rowX = [], rowY = [], rowZ = [];
                     let u = (i / (n - 1)) * 5 - 2.5;
-                    for (let j = 0; j < n; j++) {
+                    for (let j = 0; j < n; j++) {{
                         let v = (j / (n - 1)) * 5 - 2.5;
                         let r = Math.sqrt(u*u + v*v);
-                        
                         let wave = Math.sin(r * 2 - frame) * Math.cos(u * 0.8 + frame * 0.4);
                         let pz = Math.abs(wave) * vol * 1.2 + 0.05; 
-                        
-                        rowX.push(u);
-                        rowY.push(v);
-                        rowZ.push(pz);
-                    }
-                    x.push(rowX);
-                    y.push(rowY);
-                    z.push(rowZ);
-                }
-                return { x: x, y: y, z: z };
+                        rowX.push(u); rowY.push(v); rowZ.push(pz);
+                    }}
+                    x.push(rowX); y.push(rowY); z.push(rowZ);
+                }}
+                return {{ x: x, y: y, z: z }};
             }
 
             let initialData = getSurface(0);
-
-            const data = [{
+            const data = [{{
                 type: 'surface',
-                x: initialData.x,
-                y: initialData.y,
-                z: initialData.z,
-                colorscale: [
-                    [0, '#4b0082'],
-                    [0.3, '#9400d3'],
-                    [0.6, '#ff8c00'],
-                    [1, '#ffff00']
-                ],
+                x: initialData.x, y: initialData.y, z: initialData.z,
+                colorscale: [[0, '#4b0082'], [0.3, '#9400d3'], [0.6, '#ff8c00'], [1, '#ffff00']],
                 showscale: false,
-                lighting: { ambient: 0.6, diffuse: 0.8, specular: 0.05, roughness: 0.95 }
-            }];
+                lighting: {{ ambient: 0.6, diffuse: 0.8, specular: 0.05, roughness: 0.95 }}
+            }}];
 
-            const layout = {
+            const layout = {{
                 template: 'plotly_dark',
-                paper_bgcolor: '#000000',
-                plot_bgcolor: '#000000',
-                autosize: true,
-                margin: {l: 0, r: 0, b: 0, t: 0},
-                scene: {
+                paper_bgcolor: '#000000', plot_bgcolor: '#000000',
+                autosize: true, margin: {{l: 0, r: 0, b: 0, t: 0}},
+                scene: {{
                     bgcolor: '#000000',
-                    xaxis: {showgrid: true, zeroline: true, title: 'Strike Price', gridcolor: '#333', zerolinecolor: '#555'},
-                    yaxis: {showgrid: true, zeroline: true, title: 'Time', gridcolor: '#333', zerolinecolor: '#555'},
-                    zaxis: {showgrid: true, zeroline: true, title: 'Volatility', range: [0, 3.5], gridcolor: '#333', zerolinecolor: '#555'},
-                    camera: { eye: {x: 1.6, y: -1.6, z: 1.2} }
-                }
-            };
+                    xaxis: {{showgrid: true, zeroline: true, title: 'Strike', gridcolor: '#333', zerolinecolor: '#555'}},
+                    yaxis: {{showgrid: true, zeroline: true, title: 'Time', gridcolor: '#333', zerolinecolor: '#555'}},
+                    zaxis: {{showgrid: true, zeroline: true, title: 'Volatility', range: [0, 3.5], gridcolor: '#333', zerolinecolor: '#555'}},
+                    camera: {{ eye: {{x: 1.6, y: -1.6, z: 1.2}} }}
+                }}
+            }};
 
             let plotDiv = document.getElementById('plotly-div');
-            Plotly.newPlot(plotDiv, data, layout, {responsive: true, scrollZoom: true});
+            Plotly.newPlot(plotDiv, data, layout, {{responsive: true, scrollZoom: true}});
 
             let frame = 0;
-            function animate() {
+            function animate() {{
                 frame += 0.02;
                 let currentData = getSurface(frame);
-                Plotly.restyle(plotDiv, {
-                    x: [currentData.x],
-                    y: [currentData.y],
-                    z: [currentData.z]
-                }, [0]);
+                Plotly.restyle(plotDiv, {{ x: [currentData.x], y: [currentData.y], z: [currentData.z] }}, [0]);
                 requestAnimationFrame(animate);
-            }
+            }}
             requestAnimationFrame(animate);
         </script>
     </body>
     </html>
-    """.replace("MARKET_PLACEHOLDER", selected_market).replace("PRICE_PLACEHOLDER", f"{base_price:,.2f}").replace("VOL_PLACEHOLDER_NUM", str(volatility_factor)).replace("VOL_PLACEHOLDER", f"{volatility_factor:.2f}")
+    """
 
-    components.html(raw_surface_html, height=620)
-    st.caption(f"ℹ️ **Quanten-Membran:** Exakte Höhe für **{selected_market}** ohne Scrollen.")
+# Volatilitätsfaktor berechnen
+if df_data is not None and len(df_data) > 1:
+    try:
+        volatility_factor = float((df_data['High'].max() - df_data['Low'].min()) / base_price * 50)
+        volatility_factor = max(0.5, min(volatility_factor, 3.0))
+    except Exception:
+        volatility_factor = 1.0
+else:
+    volatility_factor = 1.0
+
+# 4. Ansichten Rendering
+if "TradingView" in view_mode:
+    st.subheader(f"📈 TradingView Live-Terminal — {selected_market}")
+    components.html(get_tradingview_html(ticker_symbol), height=620, scrolling=False)
+
+elif "Quanten-Membran" in view_mode:
+    st.subheader(f"🧊 Quanten-Membran (Matt & Butter-Smooth) — {selected_market}")
+    html_content = get_quantum_html(selected_market, f"{base_price:,.2f}", volatility_factor, f"{volatility_factor:.2f}")
+    components.html(html_content, height=620)
+
+else:  # Split-View (Beide nebeneinander)
+    st.subheader(f"⚡ Dual Terminal & Quanten-Membran — {selected_market}")
+    col_a, col_b = st.columns(2)
+    
+    with col_a:
+        st.markdown("**📈 TradingView Live**")
+        components.html(get_tradingview_html(ticker_symbol), height=580, scrolling=False)
+        
+    with col_b:
+        st.markdown("**🧊 Quanten-Membran (3D)**")
+        html_content = get_quantum_html(selected_market, f"{base_price:,.2f}", volatility_factor, f"{volatility_factor:.2f}")
+        components.html(html_content, height=580)
