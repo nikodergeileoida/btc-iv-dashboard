@@ -14,7 +14,7 @@ st.sidebar.title("⚡ Terminal Control")
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 👁️ Ansicht")
-view_mode = st.sidebar.radio("Modus wählen:", ["📊 Chart (Candlestick)", "🧊 3D Surface (Wellen-Matrix)"])
+view_mode = st.sidebar.radio("Modus wählen:", ["📊 Chart (Candlestick)", "🧊 4D Tesseract (Hypercube)"])
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🌍 Märkte")
@@ -180,9 +180,9 @@ if "Chart" in view_mode:
     st.caption("ℹ️ **Tiefschwarzer Live-Chart:** Vollständig freies Verschieben (Pan) und Zoomen per Mausrad/Klick.")
 
 else:
-    st.subheader(f"🧊 3D Matrix Surface (Multi-Peak) — {selected_market}")
+    st.subheader(f"🧊 4D Tesseract (Hypercube) — {selected_market}")
     
-    raw_surface_html = """
+    raw_tesseract_html = """
     <!DOCTYPE html>
     <html>
     <head>
@@ -198,38 +198,83 @@ else:
         </style>
     </head>
     <body>
-        <div class="market-badge">MARKET_NAME: $BASE_PRICE_VAL (3D Multi-Peak Matrix)</div>
+        <div class="market-badge">MARKET_NAME: $BASE_PRICE_VAL (4D Hypercube Rotation)</div>
         <div id="plotly-div"></div>
         <script>
-            const n = 45;
-            let x = [], y = [];
-            for(let i=0; i<n; i++) {
-                x.push(-4 + (i / (n-1)) * 8);
-                y.push(-4 + (i / (n-1)) * 8);
-            }
-            
-            let X = [], Y = [], Z0 = [];
-            for (let i = 0; i < n; i++) {
-                let rowX = [], rowY = [], rowZ = [];
-                for (let j = 0; j < n; j++) {
-                    let xi = x[j];
-                    let yj = y[i];
-                    rowX.push(xi);
-                    rowY.push(yj);
-                    let zVal = 1.5 + Math.sin(xi) * Math.cos(yj) * 0.8;
-                    rowZ.push(zVal);
-                }
-                X.push(rowX);
-                Y.push(rowY);
-                Z0.push(rowZ);
+            // 16 Eckpunkte eines 4D-Hyperwürfels generieren
+            let vertices = [];
+            for (let i = 0; i < 16; i++) {
+                vertices.push([
+                    (i & 1) ? 1 : -1,
+                    (i & 2) ? 1 : -1,
+                    (i & 4) ? 1 : -1,
+                    (i & 8) ? 1 : -1
+                ]);
             }
 
+            // 32 Kanten definieren (Eckpunkte, die sich um exakt 1 Koordinate unterscheiden)
+            let edges = [];
+            for (let i = 0; i < 16; i++) {
+                for (let j = i + 1; j < 16; j++) {
+                    let diff = 0;
+                    for (let k = 0; k < 4; k++) {
+                        if (vertices[i][k] !== vertices[j][k]) diff++;
+                    }
+                    if (diff === 1) {
+                        edges.push([i, j]);
+                    }
+                }
+            }
+
+            function getProjectedCoordinates(angle) {
+                let projected_vertices = [];
+                for (let i = 0; i < 16; i++) {
+                    let v = [...vertices[i]];
+                    
+                    // 4D Rotation in der XW-Ebene
+                    let x = v[0], w = v[3];
+                    let cosA = Math.cos(angle), sinA = Math.sin(angle);
+                    let x1 = x * cosA - w * sinA;
+                    let w1 = x * sinA + w * cosA;
+                    
+                    // 4D Rotation in der YW-Ebene
+                    let y = v[1];
+                    let y1 = y * cosA - w1 * sinA;
+                    let w2 = y * sinA + w1 * cosA;
+                    
+                    let z = v[2];
+                    
+                    // Perspektivische Projektion von 4D nach 3D
+                    let distance = 2.5;
+                    let w_factor = 1 / (distance - w2);
+                    
+                    projected_vertices.push([
+                        x1 * w_factor * 1.8,
+                        y1 * w_factor * 1.8,
+                        z * w_factor * 1.8
+                    ]);
+                }
+
+                let x_coords = [], y_coords = [], z_coords = [];
+                for (let edge of edges) {
+                    let p1 = projected_vertices[edge[0]];
+                    let p2 = projected_vertices[edge[1]];
+                    x_coords.push(p1[0], p2[0], null);
+                    y_coords.push(p1[1], p2[1], null);
+                    z_coords.push(p1[2], p2[2], null);
+                }
+                return { x: x_coords, y: y_coords, z: z_coords };
+            }
+
+            let initialCoords = getProjectedCoordinates(0);
+
             const data = [{
-                z: Z0,
-                x: X,
-                y: Y,
-                type: 'surface',
-                colorscale: 'Plasma'
+                type: 'scatter3d',
+                mode: 'lines',
+                x: initialCoords.x,
+                y: initialCoords.y,
+                z: initialCoords.z,
+                line: { color: '#00ffcc', width: 5 }
             }];
 
             const layout = {
@@ -240,10 +285,10 @@ else:
                 margin: {l: 0, r: 0, b: 0, t: 0},
                 scene: {
                     bgcolor: '#000000',
-                    xaxis: {title: 'Dimension X', backgroundcolor: '#000000', gridcolor: '#222', zerolinecolor: '#444'},
-                    yaxis: {title: 'Dimension Y', backgroundcolor: '#000000', gridcolor: '#222', zerolinecolor: '#444'},
-                    zaxis: {title: 'Amplitude', range: [-1.0, 3.5], backgroundcolor: '#000000', gridcolor: '#222', zerolinecolor: '#444'},
-                    camera: { eye: {x: 1.6, y: -1.6, z: 1.4} }
+                    xaxis: {showgrid: false, zeroline: false, showticklabels: false, title: ''},
+                    yaxis: {showgrid: false, zeroline: false, showticklabels: false, title: ''},
+                    zaxis: {showgrid: false, zeroline: false, showticklabels: false, title: ''},
+                    camera: { eye: {x: 1.5, y: -1.5, z: 1.2} }
                 }
             };
 
@@ -260,20 +305,13 @@ else:
             let frame = 0;
             function runAnimation() {
                 if (!isInteracting) {
-                    frame += 0.04;
-                    let Z = [];
-                    for (let i = 0; i < n; i++) {
-                        let rowZ = [];
-                        for (let j = 0; j < n; j++) {
-                            let xi = X[i][j];
-                            let yj = Y[i][j];
-                            // Die Formel für die doppelte Wellen-Matrix / Multi-Peak
-                            let z = 1.5 + Math.sin(xi + frame * 0.5) * Math.cos(yj + frame * 0.3) * 0.8;
-                            rowZ.push(z);
-                        }
-                        Z.push(rowZ);
-                    }
-                    Plotly.restyle('plotly-div', {z: [Z]}, [0]);
+                    frame += 0.025;
+                    let coords = getProjectedCoordinates(frame);
+                    Plotly.restyle('plotly-div', {
+                        x: [coords.x],
+                        y: [coords.y],
+                        z: [coords.z]
+                    }, [0]);
                 }
                 setTimeout(runAnimation, 40);
             }
@@ -284,11 +322,11 @@ else:
     </html>
     """
     
-    surface_html = (
-        raw_surface_html
+    tesseract_html = (
+        raw_tesseract_html
         .replace("MARKET_NAME", selected_market)
         .replace("BASE_PRICE_VAL", f"{base_price:,.2f}")
     )
     
-    components.html(surface_html, height=600)
-    st.caption("ℹ️ **Multi-Peak Matrix (3D):** Fließende, mehrgipflige Wellenlandschaft im tiefschwarzen Design. Die Kamera bleibt beim Klicken & Ziehen voll beweglich.")
+    components.html(tesseract_html, height=600)
+    st.caption("ℹ️ **4D Tesseract:** Ein vierdimensionaler Hyperwürfel, der live rotiert und in den 3D-Raum projiziert wird. Du kannst das Modell jederzeit mit der Maus frei drehen und zoomen.")
