@@ -24,7 +24,10 @@ view_mode = st.sidebar.radio("Modus wählen:", [
     "⚡ Beide nebeneinander (Split-View)"
 ])
 
-# Zusätzliche Steuerung für Eigene Kerzen
+# Standardwerte definieren, damit es zu keinem NameError kommt
+smoothing = 1
+price_offset = 0.0
+
 custom_mode = "Eigene Kerzen" in view_mode or "Split-View" in view_mode
 if custom_mode:
     st.sidebar.markdown("### 🛠️ Kerzen-Manipulation")
