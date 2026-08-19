@@ -47,26 +47,44 @@ asset_class = st.sidebar.selectbox(
     ["Kryptowährungen", "US-Märkte", "Deutsche Märkte (Xetra)", "Forex & Rohstoffe"]
 )
 
-# Ticker-Mapping
+# Erweitertes Ticker-Mapping mit direktem Fallback für Yahoo Finance
 if asset_class == "Kryptowährungen":
-    market_map = {"BTCUSDT": "BTCUSDT", "ETHUSDT": "ETHUSDT", "SOLUSDT": "SOLUSDT", "BNBUSDT": "BNBUSDT", "XRPUSDT": "XRPUSDT"}
+    market_map = {
+        "BTCUSDT": {"binance": "BTCUSDT", "yf": "BTC-USD"},
+        "ETHUSDT": {"binance": "ETHUSDT", "yf": "ETH-USD"},
+        "SOLUSDT": {"binance": "SOLUSDT", "yf": "SOL-USD"},
+        "BNBUSDT": {"binance": "BNBUSDT", "yf": "BNB-USD"},
+        "XRPUSDT": {"binance": "XRPUSDT", "yf": "XRP-USD"}
+    }
 elif asset_class == "US-Märkte":
-    market_map = {"S&P 500 (SPY)": "SPY", "Nasdaq (QQQ)": "QQQ", "Apple (AAPL)": "AAPL", "Tesla (TSLA)": "TSLA", "NVIDIA (NVDA)": "NVIDIA"}
+    market_map = {
+        "S&P 500 (SPY)": {"yf": "SPY"}, "Nasdaq (QQQ)": {"yf": "QQQ"}, 
+        "Apple (AAPL)": {"yf": "AAPL"}, "Tesla (TSLA)": {"yf": "TSLA"}, "NVIDIA (NVDA)": {"yf": "NVIDIA"}
+    }
 elif asset_class == "Deutsche Märkte (Xetra)":
-    market_map = {"DAX Index": "^GDAXI", "SAP SE": "SAP.DE", "Siemens": "SIE.DE", "Allianz": "ALV.DE"}
+    market_map = {
+        "DAX Index": {"yf": "^GDAXI"}, "SAP SE": {"yf": "SAP.DE"}, 
+        "Siemens": {"yf": "SIE.DE"}, "Allianz": {"yf": "ALV.DE"}
+    }
 else:
-    market_map = {"Gold (XAUUSD)": "GC=F", "Silver": "SI=F", "Crude Oil": "CL=F", "EUR/USD": "EURUSD=X"}
+    market_map = {
+        "Gold (XAUUSD)": {"yf": "GC=F"}, "Silver": {"yf": "SI=F"}, 
+        "Crude Oil": {"yf": "CL=F"}, "EUR/USD": {"yf": "EURUSD=X"}
+    }
 
 selected_market = st.sidebar.selectbox("🎯 Spezieller Markt:", list(market_map.keys()))
-ticker_symbol = market_map[selected_market]
+market_info = market_map[selected_market]
 
-# 3. Hochgenaue Datenbeschaffung (Binance für Krypto = 100% akkurat wie TV, ansonsten yfinance)
+# 3. Robuste Datenbeschaffung mit automatischem Fallback
 @st.cache_data(ttl=5)
-def fetch_accurate_market_data(asset_cls, symbol):
-    try:
-        # Wenn Krypto, nutze direkt die Binance API für identische Kerzen wie auf TradingView
-        if asset_cls == "Kryptowährungen":
-            url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=1m&limit=150"
+def fetch_robust_market_data(asset_cls, info):
+    df = pd.DataFrame()
+    current_price = 100.0
+
+    # Versuch 1: Binance API (nur bei Krypto)
+    if asset_cls == "Kryptowährungen" and "binance" in info:
+        try:
+            url = f"https://api.binance.com/api/v3/klines?symbol={info['binance']}&interval=1m&limit=150"
             response = requests.get(url, timeout=3)
             data = response.json()
             if isinstance(data, list) and len(data) > 0:
@@ -83,18 +101,26 @@ def fetch_accurate_market_data(asset_cls, symbol):
                 df.set_index('Open_time', inplace=True)
                 current_price = df['Close'].iloc[-1]
                 return df[['Open', 'High', 'Low', 'Close']], current_price
-        
-        # Fallback für Aktien, Indizes und Forex (Yahoo Finance mit auto_adjust=False)
-        t = yf.Ticker(symbol)
+        except Exception:
+            pass  # Fallback greift automatisch, falls Binance fehlschlägt
+
+    # Versuch 2: Yahoo Finance (Fallback oder Standard für Aktien/Forex)
+    try:
+        yf_symbol = info.get("yf", list(info.values())[0])
+        t = yf.Ticker(yf_symbol)
         df = t.history(period="1d", interval="1m", auto_adjust=False)
         if df.empty:
             df = t.history(period="5d", interval="15m", auto_adjust=False)
-        current_price = t.history(period="1d", auto_adjust=False)['Close'].iloc[-1]
-        return df[['Open', 'High', 'Low', 'Close']], current_price
+        
+        if not df.empty:
+            current_price = t.history(period="1d", auto_adjust=False)['Close'].iloc[-1]
+            return df[['Open', 'High', 'Low', 'Close']], current_price
     except Exception:
-        return None, 100.0
+        pass
 
-df_raw, base_price = fetch_accurate_market_data(asset_class, ticker_symbol)
+    return None, current_price
+
+df_raw, base_price = fetch_robust_market_data(asset_class, market_info)
 
 # Eigene Kerzen verarbeiten / manipulieren
 if df_raw is not None and not df_raw.empty:
@@ -129,7 +155,8 @@ def get_market_status():
 status_text, status_flag = get_market_status()
 
 # Haupt-Layout
-st.title(f"Terminal // {selected_market} ({ticker_symbol})")
+display_symbol = market_info.get("yf", market_info.get("binance", ""))
+st.title(f"Terminal // {selected_market} ({display_symbol})")
 st.markdown(f"Kategorie: **{asset_class}** | Status: **{status_text}**")
 
 col1, col2, col3 = st.columns(3)
@@ -140,7 +167,7 @@ col3.metric("Modus", view_mode, "Aktiv")
 st.divider()
 
 # Hilfsfunktion für TradingView Original-Widget
-def get_tradingview_html(symbol):
+def get_tradingview_html(symbol_key):
     tv_symbol_map = {
         "BTCUSDT": "BINANCE:BTCUSDT", "ETHUSDT": "BINANCE:ETHUSDT", "SOLUSDT": "BINANCE:SOLUSDT",
         "BNBUSDT": "BINANCE:BNBUSDT", "XRPUSDT": "BINANCE:XRPUSDT", "SPY": "AMEX:SPY",
@@ -148,7 +175,7 @@ def get_tradingview_html(symbol):
         "^GDAXI": "XETR:DAX", "SAP.DE": "XETR:SAP", "SIE.DE": "XETR:SIE", "ALV.DE": "XETR:ALV",
         "GC=F": "COMEX:GC1!", "SI=F": "NYMEX:SI1!", "CL=F": "NYMEX:CL1!", "EURUSD=X": "FX_IDC:EURUSD"
     }
-    tv_symbol = tv_symbol_map.get(symbol, "BINANCE:BTCUSDT")
+    tv_symbol = tv_symbol_map.get(symbol_key, "BINANCE:BTCUSDT")
     return f"""
     <!DOCTYPE html>
     <html>
@@ -171,7 +198,7 @@ def get_tradingview_html(symbol):
 # Funktion für Eigene Kerzen im perfekten TradingView-Design mit Pan & Scroll-Zoom
 def render_custom_candles(df, title_text):
     if df is None or df.empty:
-        st.warning("Keine Kerzen-Daten verfügbar.")
+        st.warning("Keine Kerzen-Daten verfügbar. (Bitte prüfen Sie die Internetverbindung oder wählen Sie einen anderen Markt).")
         return
     
     fig = go.Figure(data=[go.Candlestick(
@@ -319,9 +346,11 @@ else:
     volatility_factor = 1.0
 
 # Ansichten Rendering
+tv_map_key = market_info.get("binance", market_info.get("yf", "BTCUSDT"))
+
 if "TradingView Live-Terminal" in view_mode:
     st.subheader(f"📈 TradingView Live-Terminal — {selected_market}")
-    components.html(get_tradingview_html(ticker_symbol), height=620, scrolling=False)
+    components.html(get_tradingview_html(tv_map_key), height=620, scrolling=False)
 
 elif "Eigene Kerzen" in view_mode:
     st.subheader(f"🕯️ Eigene Kerzen (Custom Python Engine) — {selected_market}")
