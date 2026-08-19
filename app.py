@@ -193,7 +193,7 @@ def get_tradingview_html(symbol_key):
     </html>
     """
 
-# Flimmerfreie native Custom-Kerzen via st.plotly_chart
+# Flimmerfreie & Zoom-stabile Custom-Kerzen via st.plotly_chart & uirevision
 def render_native_custom_candles(df, title_text, chart_key="candles"):
     if df is None or df.empty:
         st.warning("Keine Kerzen-Daten verfügbar.")
@@ -213,6 +213,7 @@ def render_native_custom_candles(df, title_text, chart_key="candles"):
         template='plotly_dark',
         paper_bgcolor='#131722',
         plot_bgcolor='#131722',
+        uirevision='persistent_zoom_state',  # <--- HIER: Hält den Zoom-Zustand bei Live-Updates stabil!
         margin=dict(l=10, r=50, t=30, b=10),
         xaxis=dict(
             rangeslider=dict(visible=False),
