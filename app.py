@@ -14,7 +14,7 @@ st.sidebar.title("⚡ Terminal Control")
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 👁️ Ansicht")
-view_mode = st.sidebar.radio("Modus wählen:", ["📊 Chart (Candlestick)", "🧊 Aizawa-Attraktor (Sphärisches Chaos)"])
+view_mode = st.sidebar.radio("Modus wählen:", ["📊 Chart (Candlestick)", "🧊 Rössler-Attraktor (Falten-Chaos)"])
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🌍 Märkte")
@@ -180,9 +180,9 @@ if "Chart" in view_mode:
     st.caption("ℹ️ **Tiefschwarzer Live-Chart:** Vollständig freies Verschieben (Pan) und Zoomen per Mausrad/Klick.")
 
 else:
-    st.subheader(f"🧊 Aizawa-Attraktor (Sphärisches Chaos) — {selected_market}")
+    st.subheader(f"🧊 Rössler-Attraktor (Falten-Chaos) — {selected_market}")
     
-    raw_aizawa_html = """
+    raw_rossler_html = """
     <!DOCTYPE html>
     <html>
     <head>
@@ -209,30 +209,27 @@ else:
         </style>
     </head>
     <body>
-        <div class="market-badge">MARKET_NAME: $BASE_PRICE_VAL (Aizawa Chaos)</div>
+        <div class="market-badge">MARKET_NAME: $BASE_PRICE_VAL (Rössler Chaos)</div>
         <div class="zoom-controls">
             <button class="zoom-btn" onclick="zoomIn()" title="Hineinzoomen">+</button>
             <button class="zoom-btn" onclick="zoomOut()" title="Herauszoomen">-</button>
         </div>
         <div id="plotly-div"></div>
         <script>
-            const a = 0.95;
-            const b = 0.7;
-            const c = 0.6;
-            const d = 3.5;
-            const e = 0.25;
-            const f = 0.1;
+            const a = 0.2;
+            const b = 0.2;
+            const c = 5.7;
             
-            let x = 0.1, y = 0.0, z = 0.0;
-            let dt = 0.01;
+            let x = 0.1, y = 0.1, z = 0.1;
+            let dt = 0.04;
             
             let x_trail = [], y_trail = [], z_trail = [];
             const maxPoints = 2500;
 
             for (let i = 0; i < maxPoints; i++) {
-                let dx = (z - b) * x - d * y;
-                let dy = d * x + (z - b) * y;
-                let dz = c + a * z - (Math.pow(z, 3) / 3.0) - (Math.pow(x, 2) + Math.pow(y, 2)) * (1.0 + e * z) + f * z * Math.pow(x, 3);
+                let dx = -y - z;
+                let dy = x + a * y;
+                let dz = b + z * (x - c);
                 x += dx * dt;
                 y += dy * dt;
                 z += dz * dt;
@@ -249,7 +246,7 @@ else:
                 z: z_trail,
                 line: {
                     color: z_trail,
-                    colorscale: 'Turbo',
+                    colorscale: 'Electric',
                     width: 3
                 }
             }];
@@ -265,7 +262,7 @@ else:
                     xaxis: {showgrid: false, zeroline: false, showticklabels: false, title: ''},
                     yaxis: {showgrid: false, zeroline: false, showticklabels: false, title: ''},
                     zaxis: {showgrid: false, zeroline: false, showticklabels: false, title: ''},
-                    camera: { eye: {x: 1.5, y: 1.5, z: 1.2} }
+                    camera: { eye: {x: 1.5, y: -1.5, z: 1.2} }
                 }
             };
 
@@ -292,10 +289,10 @@ else:
 
             function runAnimation() {
                 if (!isInteracting) {
-                    for(let s = 0; s < 4; s++) {
-                        let dx = (z - b) * x - d * y;
-                        let dy = d * x + (z - b) * y;
-                        let dz = c + a * z - (Math.pow(z, 3) / 3.0) - (Math.pow(x, 2) + Math.pow(y, 2)) * (1.0 + e * z) + f * z * Math.pow(x, 3);
+                    for(let s = 0; s < 3; s++) {
+                        let dx = -y - z;
+                        let dy = x + a * y;
+                        let dz = b + z * (x - c);
                         x += dx * dt;
                         y += dy * dt;
                         z += dz * dt;
@@ -327,11 +324,11 @@ else:
     </html>
     """
     
-    aizawa_html = (
-        raw_aizawa_html
+    rossler_html = (
+        raw_rossler_html
         .replace("MARKET_NAME", selected_market)
         .replace("BASE_PRICE_VAL", f"{base_price:,.2f}")
     )
     
-    components.html(aizawa_html, height=600)
-    st.caption("ℹ️ **Aizawa-Attraktor (Sphärisches Chaos):** Ein lebendiges, tunnelartiges Strömungsmodell. Nutze die Zoom-Buttons oder drehe das Modell stufenlos per Maus.")
+    components.html(rossler_html, height=600)
+    st.caption("ℹ️ **Rössler-Attraktor (Falten-Chaos):** Ein fließendes, sich selbst faltendes Band im elektrischen Farbverlauf. Nutze die Zoom-Buttons oder drehe das Modell frei mit der Maus.")
