@@ -14,7 +14,7 @@ st.sidebar.title("⚡ Terminal Control")
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 👁️ Ansicht")
-view_mode = st.sidebar.radio("Modus wählen:", ["📊 Chart (Candlestick)", "🧊 3D Surface"])
+view_mode = st.sidebar.radio("Modus wählen:", ["📊 Chart (Candlestick)", "🧊 3D Surface (Wellen-Matrix)"])
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🌍 Märkte")
@@ -180,7 +180,7 @@ if "Chart" in view_mode:
     st.caption("ℹ️ **Tiefschwarzer Live-Chart:** Vollständig freies Verschieben (Pan) und Zoomen per Mausrad/Klick.")
 
 else:
-    st.subheader(f"🧊 3D Volatility Surface — {selected_market}")
+    st.subheader(f"🧊 3D Matrix Surface (Multi-Peak) — {selected_market}")
     
     raw_surface_html = """
     <!DOCTYPE html>
@@ -198,14 +198,14 @@ else:
         </style>
     </head>
     <body>
-        <div class="market-badge">MARKET_NAME: $BASE_PRICE_VAL (3D Volatility Skew)</div>
+        <div class="market-badge">MARKET_NAME: $BASE_PRICE_VAL (3D Multi-Peak Matrix)</div>
         <div id="plotly-div"></div>
         <script>
-            const n = 40;
+            const n = 45;
             let x = [], y = [];
             for(let i=0; i<n; i++) {
-                x.push(-3 + (i / (n-1)) * 6);
-                y.push(-3 + (i / (n-1)) * 6);
+                x.push(-4 + (i / (n-1)) * 8);
+                y.push(-4 + (i / (n-1)) * 8);
             }
             
             let X = [], Y = [], Z0 = [];
@@ -216,9 +216,8 @@ else:
                     let yj = y[i];
                     rowX.push(xi);
                     rowY.push(yj);
-                    let skew = 0.3 * xi;
-                    let smile = 0.28 * (xi * xi) + 0.18 * (yj * yj);
-                    rowZ.push(Math.max(0.2, 1.4 + smile - skew));
+                    let zVal = 1.5 + Math.sin(xi) * Math.cos(yj) * 0.8;
+                    rowZ.push(zVal);
                 }
                 X.push(rowX);
                 Y.push(rowY);
@@ -230,7 +229,7 @@ else:
                 x: X,
                 y: Y,
                 type: 'surface',
-                colorscale: 'Viridis'
+                colorscale: 'Plasma'
             }];
 
             const layout = {
@@ -241,16 +240,15 @@ else:
                 margin: {l: 0, r: 0, b: 0, t: 0},
                 scene: {
                     bgcolor: '#000000',
-                    xaxis: {title: 'Strike Price (Skew)', backgroundcolor: '#000000', gridcolor: '#222', zerolinecolor: '#444'},
-                    yaxis: {title: 'Time to Maturity', backgroundcolor: '#000000', gridcolor: '#222', zerolinecolor: '#444'},
-                    zaxis: {title: 'Implied Volatility', range: [0.2, 3.2], backgroundcolor: '#000000', gridcolor: '#222', zerolinecolor: '#444'},
-                    camera: { eye: {x: 1.6, y: -1.6, z: 1.3} }
+                    xaxis: {title: 'Dimension X', backgroundcolor: '#000000', gridcolor: '#222', zerolinecolor: '#444'},
+                    yaxis: {title: 'Dimension Y', backgroundcolor: '#000000', gridcolor: '#222', zerolinecolor: '#444'},
+                    zaxis: {title: 'Amplitude', range: [-1.0, 3.5], backgroundcolor: '#000000', gridcolor: '#222', zerolinecolor: '#444'},
+                    camera: { eye: {x: 1.6, y: -1.6, z: 1.4} }
                 }
             };
 
             Plotly.newPlot('plotly-div', data, layout, {responsive: true, scrollZoom: true, displayModeBar: true});
 
-            // Intelligente Erkennung: Pausiert die Animation sofort, wenn du die Kamera mit der Maus drehst/zoomst
             let isInteracting = false;
             let plotDiv = document.getElementById('plotly-div');
 
@@ -262,18 +260,16 @@ else:
             let frame = 0;
             function runAnimation() {
                 if (!isInteracting) {
-                    frame += 0.05;
+                    frame += 0.04;
                     let Z = [];
                     for (let i = 0; i < n; i++) {
                         let rowZ = [];
                         for (let j = 0; j < n; j++) {
                             let xi = X[i][j];
                             let yj = Y[i][j];
-                            let skew = 0.3 * xi;
-                            let smile = 0.28 * (xi * xi) + 0.18 * (yj * yj);
-                            let wave = 0.4 * Math.sin(xi * 0.9 - frame) * Math.cos(yj * 0.7 + frame);
-                            let z = 1.4 + smile - skew + wave;
-                            rowZ.push(Math.max(0.2, z));
+                            // Die Formel für die doppelte Wellen-Matrix / Multi-Peak
+                            let z = 1.5 + Math.sin(xi + frame * 0.5) * Math.cos(yj + frame * 0.3) * 0.8;
+                            rowZ.push(z);
                         }
                         Z.push(rowZ);
                     }
@@ -295,4 +291,4 @@ else:
     )
     
     components.html(surface_html, height=600)
-    st.caption("ℹ️ **Tiefschwarzes 3D-Modell:** Sobald du klickst und ziehst, pausiert die Animation automatisch – du kannst die Kamera nun völlig frei in jede Richtung drehen und zoomen.")
+    st.caption("ℹ️ **Multi-Peak Matrix (3D):** Fließende, mehrgipflige Wellenlandschaft im tiefschwarzen Design. Die Kamera bleibt beim Klicken & Ziehen voll beweglich.")
