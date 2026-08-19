@@ -59,15 +59,15 @@ else:
 selected_market = st.sidebar.selectbox("🎯 Spezieller Markt:", list(market_map.keys()))
 ticker_symbol = market_map[selected_market]
 
-# Echte Live-Daten von Yahoo Finance laden
+# Echte Live-Daten laden (auto_adjust=False für ungefilterte, originale OHLC-Rohdaten wie an der Börse)
 @st.cache_data(ttl=5)
 def fetch_market_data(symbol):
     try:
         t = yf.Ticker(symbol)
-        df = t.history(period="1d", interval="1m")
+        df = t.history(period="1d", interval="1m", auto_adjust=False)
         if df.empty:
-            df = t.history(period="5d", interval="15m")
-        current_price = t.history(period="1d")['Close'].iloc[-1]
+            df = t.history(period="5d", interval="15m", auto_adjust=False)
+        current_price = t.history(period="1d", auto_adjust=False)['Close'].iloc[-1]
         return df, current_price
     except Exception:
         return None, 100.0
@@ -122,7 +122,7 @@ def get_tradingview_html(symbol):
     tv_symbol_map = {
         "BTC-USD": "BINANCE:BTCUSDT", "ETH-USD": "BINANCE:ETHUSDT", "SOL-USD": "BINANCE:SOLUSDT",
         "BNB-USD": "BINANCE:BNBUSDT", "XRP-USD": "BINANCE:XRPUSDT", "SPY": "AMEX:SPY",
-        "QQQ": "NASDAQ:QQQ", "AAPL": "NASDAQ:AAPL", "TSLA": "NASDAQ:TSLA", "NVIDIA": "NASDAQ:NVDA",
+        "QQQ": "NASDAQ:QQQ", "AAPL": "NASDAQ:AAPL", "TSLA": "NASDAQ:TSLA", "NVIDIA": "NASDAQ:NVIDIA",
         "^GDAXI": "XETR:DAX", "SAP.DE": "XETR:SAP", "SIE.DE": "XETR:SIE", "ALV.DE": "XETR:ALV",
         "GC=F": "COMEX:GC1!", "SI=F": "NYMEX:SI1!", "CL=F": "NYMEX:CL1!", "EURUSD=X": "FX_IDC:EURUSD"
     }
@@ -146,7 +146,7 @@ def get_tradingview_html(symbol):
     </html>
     """
 
-# Funktion für Eigene Kerzen mit TradingView-ähnlicher Navigation (Pan, Scroll-Zoom, Fadenkreuz)
+# Funktion für Eigene Kerzen im perfekten TradingView-Design mit Pan & Scroll-Zoom
 def render_custom_candles(df, title_text):
     if df is None or df.empty:
         st.warning("Keine Kerzen-Daten verfügbar.")
@@ -158,26 +158,27 @@ def render_custom_candles(df, title_text):
         high=df['High'],
         low=df['Low'],
         close=df['Close'],
-        increasing_line_color='#00F5D4', 
-        decreasing_line_color='#F72585'  
+        increasing_line_color='#089981',  # TradingView Grün
+        decreasing_line_color='#F23645',  # TradingView Rot
+        increasing_fillcolor='#089981',
+        decreasing_fillcolor='#F23645'
     )])
     
     fig.update_layout(
         template='plotly_dark',
-        paper_bgcolor='#000000',
-        plot_bgcolor='#000000',
-        margin=dict(l=0, r=0, t=30, b=0),
+        paper_bgcolor='#131722',  # Exakter TradingView Hintergrund-Ton
+        plot_bgcolor='#131722',
+        margin=dict(l=10, r=50, t=30, b=10),
         xaxis_rangeslider_visible=False,
-        title=dict(text=title_text, font=dict(size=14, color='orange')),
-        dragmode='pan',  # Erlaubt das Verschieben des Charts per Mausklick wie bei TradingView
+        title=dict(text=title_text, font=dict(size=14, color='#d1d4dc')),
+        dragmode='pan',
         hovermode='x unified'
     )
     
-    # Achsen-Grid und Fadenkreuz im TradingView-Stil (Preisachse rechts)
-    fig.update_xaxes(gridcolor='#1a1a1a', showspikes=True, spikecolor='#555', spikethickness=1, spikedash='dot')
-    fig.update_yaxes(gridcolor='#1a1a1a', side='right', showspikes=True, spikecolor='#555', spikethickness=1, spikedash='dot')
+    # Exaktes Fadenkreuz und Achsenplatzierung wie bei TradingView
+    fig.update_xaxes(gridcolor='#1f293d', showspikes=True, spikecolor='#787b86', spikethickness=1, spikedash='dot')
+    fig.update_yaxes(gridcolor='#1f293d', side='right', showspikes=True, spikecolor='#787b86', spikethickness=1, spikedash='dot')
     
-    # Scroll-Zoom aktivieren und unnötige Buttons aus der Toolbar ausblenden
     config = {
         'scrollZoom': True,
         'displayModeBar': True,
@@ -302,7 +303,7 @@ if "TradingView Live-Terminal" in view_mode:
     components.html(get_tradingview_html(ticker_symbol), height=620, scrolling=False)
 
 elif "Eigene Kerzen" in view_mode:
-    st.subheader(f"🕯️ Eigene Kerzen — {selected_market}")
+    st.subheader(f"🕯️ Eigene Kerzen (Custom Python Engine) — {selected_market}")
     render_custom_candles(df_data, f"Custom OHLC Stream — {selected_market}")
 
 elif "Quanten-Membran" in view_mode:
