@@ -65,7 +65,7 @@ col3.metric("Modus", view_mode, "Aktiv")
 
 st.divider()
 
-# 4. Ansichten via High-Performance JS-Komponenten (Fehlerfrei durch .replace())
+# 4. Ansichten via High-Performance JS-Komponenten (Tiefschwarz & Frei beweglich)
 if "Chart" in view_mode:
     st.subheader(f"📈 Candlestick Chart — {selected_market}")
     
@@ -75,12 +75,12 @@ if "Chart" in view_mode:
     <head>
         <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
         <style>
-            body { margin: 0; background: #0e1117; color: white; font-family: sans-serif; }
-            #chart-div { width: 100%; height: 580px; }
+            body { margin: 0; background: #000000; color: white; font-family: sans-serif; }
+            #chart-div { width: 100%; height: 580px; background: #000000; }
             .market-badge {
                 position: absolute; top: 10px; left: 15px; z-index: 100;
                 font-family: Arial Black, sans-serif; font-size: 16px; color: orange;
-                background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 4px;
+                background: rgba(0,0,0,0.9); padding: 5px 10px; border: 1px solid #333; border-radius: 4px;
             }
         </style>
     </head>
@@ -110,15 +110,30 @@ if "Chart" in view_mode:
                 open: opens,
                 high: highs,
                 low: lows,
-                close: closes
+                close: closes,
+                increasing: { line: { color: '#00ffcc' } },
+                decreasing: { line: { color: '#ff0055' } }
             };
 
             let layout = {
                 template: 'plotly_dark',
+                paper_bgcolor: '#000000',
+                plot_bgcolor: '#000000',
                 title: 'Echtzeit-Kursverlauf (MARKET_NAME)',
                 dragmode: 'pan',
-                xaxis: { rangeslider: { visible: true } },
-                yaxis: { side: 'right', tickformat: ',.2f' },
+                xaxis: { 
+                    rangeslider: { visible: true }, 
+                    gridcolor: '#1a1a1a', 
+                    zerolinecolor: '#333',
+                    fixedrange: false
+                },
+                yaxis: { 
+                    side: 'right', 
+                    tickformat: ',.2f', 
+                    gridcolor: '#1a1a1a', 
+                    zerolinecolor: '#333',
+                    fixedrange: false
+                },
                 margin: { l: 20, r: 50, b: 20, t: 50 }
             };
 
@@ -162,7 +177,7 @@ if "Chart" in view_mode:
     )
     
     components.html(chart_html, height=600)
-    st.caption("ℹ️ **Flimmerfreier Live-Feed:** Der Chart aktualisiert sich sekündlich im Hintergrund. Klicken & Ziehen verschiebt die Ansicht.")
+    st.caption("ℹ️ **Tiefschwarzer Live-Chart:** Vollständig freies Verschieben (Pan) und Zoomen per Mausrad/Klick. Aktualisiert sich sekündlich im Hintergrund.")
 
 else:
     st.subheader(f"🧊 3D Volatility Surface — {selected_market}")
