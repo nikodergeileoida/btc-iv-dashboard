@@ -10,7 +10,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. Sidebar Navigation & Markt-Auswahl (Muss ganz oben stehen, damit view_mode existiert!)
+# 2. Sidebar Navigation & Markt-Auswahl
 st.sidebar.title("⚡ Terminal Control")
 
 st.sidebar.markdown("---")
@@ -104,13 +104,14 @@ if "TradingView" in view_mode:
     
     tv_symbol = tv_symbol_map.get(ticker_symbol, "BINANCE:BTCUSDT")
 
+    # Perfekt auf Screenshot-Größe optimiert (kein nerviges Scrollen mehr)
     tv_widget_html = f"""
     <!DOCTYPE html>
     <html>
     <head>
         <style>
             html, body {{ margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; }}
-            .tradingview-widget-container {{ width: 100%; height: 100vh; }}
+            .tradingview-widget-container {{ width: 100%; height: 100%; }}
         </style>
     </head>
     <body>
@@ -138,7 +139,7 @@ if "TradingView" in view_mode:
     </html>
     """
     
-    components.html(tv_widget_html, height=900, scrolling=False)
+    components.html(tv_widget_html, height=620, scrolling=False)
 
 else:
     st.subheader(f"🧊 Quanten-Membran (Matt & Butter-Smooth) — {selected_market}")
@@ -159,7 +160,7 @@ else:
         <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
         <style>
             body { margin: 0; background: #000000; overflow: hidden; }
-            #plotly-div { width: 100%; height: 760px; }
+            #plotly-div { width: 100%; height: 600px; }
             .market-badge {
                 position: absolute; top: 10px; left: 15px; z-index: 100;
                 font-family: Arial Black, sans-serif; font-size: 15px; color: orange;
@@ -249,5 +250,5 @@ else:
     </html>
     """.replace("MARKET_PLACEHOLDER", selected_market).replace("PRICE_PLACEHOLDER", f"{base_price:,.2f}").replace("VOL_PLACEHOLDER_NUM", str(volatility_factor)).replace("VOL_PLACEHOLDER", f"{volatility_factor:.2f}")
 
-    components.html(raw_surface_html, height=780)
-    st.caption(f"ℹ️ **Quanten-Membran:** Vergrößerte Ansicht mit mattem Shader und butterweicher Kamerasteuerung für **{selected_market}**.")
+    components.html(raw_surface_html, height=620)
+    st.caption(f"ℹ️ **Quanten-Membran:** Exakte Höhe für **{selected_market}** ohne Scrollen.")
