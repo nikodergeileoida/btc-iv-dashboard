@@ -1,7 +1,6 @@
 import streamlit as st
-import numpy as np
-import plotly.graph_objects as go
-from datetime import datetime, timedelta
+import streamlit.components.v1 as components
+from datetime import datetime
 
 # 1. Konfiguration
 st.set_page_config(
@@ -15,7 +14,7 @@ st.sidebar.title("⚡ Terminal Control")
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 👁️ Ansicht")
-view_mode = st.sidebar.radio("Modus wählen:", ["📊 Chart (Candlestick)", "🧊 3D Surface"], key="view_mode_radio")
+view_mode = st.sidebar.radio("Modus wählen:", ["📊 Chart (Candlestick)", "🧊 3D Surface"])
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🌍 Märkte")
@@ -37,7 +36,7 @@ else:
     market_list = ["Gold (XAUUSD)", "Silver", "Crude Oil", "EUR/USD"]
     base_price = 2400.0
 
-selected_market = st.sidebar.selectbox("🎯 Spezieller Markt:", market_list, key="market_select")
+selected_market = st.sidebar.selectbox("🎯 Spezieller Markt:", market_list)
 
 # Marktstatus-Logik
 def get_market_status():
@@ -55,151 +54,207 @@ def get_market_status():
 
 status_text, status_flag = get_market_status()
 
-# Session State für stabile Kursdaten
-if "market_data" not in st.session_state or st.session_state.get("current_market") != selected_market:
-    np.random.seed(sum(map(ord, selected_market)))
-    timestamps = [datetime.now() - timedelta(minutes=i) for i in range(40, 0, -1)]
-    
-    opens, highs, lows, closes = [], [], [], []
-    curr = base_price
-    for _ in timestamps:
-        o = curr
-        c = o + np.random.randn() * (base_price * 0.001)
-        h = max(o, c) + abs(np.random.randn() * (base_price * 0.0005))
-        l = min(o, c) - abs(np.random.randn() * (base_price * 0.0005))
-        opens.append(o)
-        highs.append(h)
-        lows.append(l)
-        closes.append(c)
-        curr = c
-        
-    st.session_state.market_data = {
-        "times": timestamps,
-        "opens": opens,
-        "highs": highs,
-        "lows": lows,
-        "closes": closes
-    }
-    st.session_state.current_market = selected_market
-
-data = st.session_state.market_data
-
-# Aktuelle Preisberechnung für Metriken
-current_price = data["closes"][-1]
-price_diff = current_price - data["opens"][0]
-diff_percent = (price_diff / data["opens"][0]) * 100
-
 # 3. Haupt-Layout
 st.title(f"Terminal // {selected_market}")
 st.markdown(f"Kategorie: **{asset_class}** | Status: **{status_text}**")
 
 col1, col2, col3 = st.columns(3)
-col1.metric("Aktueller Preis", f"{current_price:,.2f}", f"{diff_percent:+.2f}%")
-col2.metric("Marktstatus", status_text, status_flag)
-col3.metric("Ausgewählter Asset", selected_market, "Aktiv")
+col1.metric("Marktstatus", status_text, status_flag)
+col2.metric("Ausgewählter Asset", selected_market, "Aktiv")
+col3.metric("Modus", view_mode, "Aktiv")
 
 st.divider()
 
-# 4. Ansichten (Getrennt ohne störende Loops)
-if view_mode == "📊 Chart (Candlestick)":
+# 4. Ansichten via High-Performance JS-Komponenten (Flimmerfrei & Kamera-Frei)
+if "Chart" in view_mode:
     st.subheader(f"📈 Candlestick Chart — {selected_market}")
     
-    @st.fragment(run_every=1.0)
-    def render_candlestick_fragment():
-        # Live Tick Simulation im Hintergrund
-        tick_change = np.random.randn() * (base_price * 0.0004)
-        data["closes"][-1] += tick_change
-        data["highs"][-1] = max(data["highs"][-1], data["closes"][-1])
-        data["lows"][-1] = min(data["lows"][-1], data["closes"][-1])
-        
-        cur_p = data["closes"][-1]
-        p_diff = cur_p - data["opens"][0]
-        p_pct = (p_diff / data["opens"][0]) * 100
+    chart_html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+        <style>
+            body {{ margin: 0; background: #0e1117; color: white; font-family: sans-serif; }}
+            #chart-div {{ width: 100%; height: 580px; }}
+            .market-badge {{
+                position: absolute; top: 10px; left: 15px; z-index: 100;
+                font-family: Arial Black, sans-serif; font-size: 16px; color: orange;
+                background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 4px;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="market-badge" id="badge">{selected_market}: ${base_price:,.2f} (+0.00%)</div>
+        <div id="chart-div"></div>
+        <script>
+            let basePrice = {base_price};
+            let times = [];
+            let opens = [], highs = [], lows = [], closes = [];
+            let now = new Date();
+            
+            for(let i = 40; i >= 0; i--) {{
+                let d = new Date(now.getTime() - i * 60000);
+                times.push(d.toISOString());
+                let o = basePrice + (Math.random() - 0.5) * (basePrice * 0.002);
+                let c = o + (Math.random() - 0.5) * (basePrice * 0.002);
+                let h = Math.max(o, c) + Math.random() * (basePrice * 0.001);
+                let l = Math.min(o, c) - Math.random() * (basePrice * 0.001);
+                opens.push(o); highs.push(h); lows.push(l); closes.push(c);
+                basePrice = c;
+            }
 
-        fig_candle = go.Figure(data=[go.Candlestick(
-            x=list(data["times"]),
-            open=list(data["opens"]),
-            high=list(data["highs"]),
-            low=list(data["lows"]),
-            close=list(data["closes"])
-        )])
-        
-        fig_candle.update_layout(
-            template="plotly_dark",
-            title=f"Echtzeit-Kursverlauf ({selected_market})",
-            xaxis_rangeslider_visible=True,
-            dragmode='pan',  # Nur Verschieben beim Halten, kein Zoom-Kasten!
-            height=600,
-            margin=dict(l=20, r=50, b=20, t=50),
-            uirevision="static_chart"
-        )
-        
-        fig_candle.update_yaxes(side="right", tickformat=",.2f", fixedrange=False)
-        fig_candle.update_xaxes(fixedrange=False)
-        
-        fig_candle.add_annotation(
-            text=f"{selected_market}: ${cur_p:,.2f} ({p_pct:+.2f}%)",
-            xref="paper", yref="paper",
-            x=0.98, y=0.95,
-            showarrow=False,
-            font=dict(size=16, color="orange", family="Arial Black"),
-            bgcolor="rgba(0,0,0,0.8)",
-            bordercolor="gray",
-            borderwidth=1
-        )
+            let trace = {{
+                type: 'candlestick',
+                x: times,
+                open: opens,
+                high: highs,
+                low: lows,
+                close: closes
+            }};
 
-        st.plotly_chart(
-            fig_candle, 
-            use_container_width=True, 
-            config={
-                'scrollZoom': True, 
-                'displayModeBar': True,
-                'modeBarButtonsToRemove': ['zoom2d', 'select2d', 'lasso2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d']
-            },
-            key="candlestick_fragment_view"
-        )
-        st.caption("ℹ️ **Live-Feed Aktiv:** Der Chart aktualisiert sich sekündlich im Hintergrund. Klicken & Ziehen verschiebt die Ansicht.")
+            let layout = {{
+                template: 'plotly_dark',
+                title: 'Echtzeit-Kursverlauf ({selected_market})',
+                dragmode: 'pan',
+                xaxis: {{ rangeslider: {{ visible: true }} }},
+                yaxis: {{ side: 'right', tickformat: ',.2f' }},
+                margin: {{ l: 20, r: 50, b: 20, t: 50 }}
+            }};
 
-    render_candlestick_fragment()
+            Plotly.newPlot('chart-div', [trace], layout, {{
+                responsive: true,
+                scrollZoom: true,
+                displayModeBar: true,
+                modeBarButtonsToRemove: ['zoom2d', 'select2d', 'lasso2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d']
+            }});
+
+            // Live-Feed im Sekundentakt absolut flimmerfrei
+            setInterval(() => {{
+                let lastIdx = closes.length - 1;
+                let tick = (Math.random() - 0.5) * (basePrice * 0.0004);
+                closes[lastIdx] += tick;
+                highs[lastIdx] = Math.max(highs[lastIdx], closes[lastIdx]);
+                lows[lastIdx] = Math.min(lows[lastIdx], closes[lastIdx]);
+
+                let curP = closes[lastIdx];
+                let diff = curP - opens[0];
+                let pct = (diff / opens[0]) * 100;
+                
+                document.getElementById('badge').innerText = `{selected_market}: $${curP.toLocaleString('en-US', {{minimumFractionDigits: 2, maximumFractionDigits: 2}})} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%)`;
+
+                Plotly.update('chart-div', {{
+                    close: [closes],
+                    high: [highs],
+                    low: [lows]
+                }}, {{}}, [0]);
+            }, 1000);
+        </script>
+    </body>
+    </html>
+    """
+    components.html(chart_html, height=600)
+    st.caption("ℹ️ **Flimmerfreier Live-Feed:** Der Chart aktualisiert sich sekündlich im Hintergrund. Klicken & Ziehen verschiebt die Ansicht butterweich.")
 
 else:
     st.subheader(f"🧊 3D Volatility Surface — {selected_market}")
     
-    # 3D Oberfläche völlig frei von erzwungenen Reloads -> Kamera bleibt absolut frei und beweglich!
-    n = 35
-    x = np.linspace(-3, 3, n)
-    y = np.linspace(-3, 3, n)
-    X, Y = np.meshgrid(x, y)
-    
-    skew = 0.3 * X
-    smile = 0.28 * (X**2) + 0.18 * (Y**2)
-    Z = np.maximum(0.2, 1.4 + smile - skew)
+    surface_html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+        <style>
+            body {{ margin: 0; background: #000000; color: white; font-family: sans-serif; }}
+            #plotly-div {{ width: 100%; height: 580px; background: #000000; }}
+            .market-badge {{
+                position: absolute; top: 10px; left: 15px; z-index: 100;
+                font-family: Arial Black, sans-serif; font-size: 16px; color: orange;
+                background: rgba(0,0,0,0.9); padding: 5px 10px; border: 1px solid #333; border-radius: 4px;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="market-badge">{selected_market}: ${base_price:,.2f} (3D Volatility Skew)</div>
+        <div id="plotly-div"></div>
+        <script>
+            const n = 40;
+            let x = [], y = [];
+            for(let i=0; i<n; i++) {{
+                x.push(-3 + (i / (n-1)) * 6);
+                y.push(-3 + (i / (n-1)) * 6);
+            }}
+            
+            let X = [], Y = [], Z0 = [];
+            for (let i = 0; i < n; i++) {{
+                let rowX = [], rowY = [], rowZ = [];
+                for (let j = 0; j < n; j++) {{
+                    let xi = x[j];
+                    let yj = y[i];
+                    rowX.push(xi);
+                    rowY.push(yj);
+                    let skew = 0.3 * xi;
+                    let smile = 0.28 * (xi * xi) + 0.18 * (yj * yj);
+                    rowZ.push(Math.max(0.2, 1.4 + smile - skew));
+                }}
+                X.push(rowX);
+                Y.push(rowY);
+                Z0.push(rowZ);
+            }}
 
-    fig_3d = go.Figure(data=[go.Surface(
-        z=Z, x=X, y=Y,
-        colorscale='Viridis'
-    )])
+            const data = [{{
+                z: Z0,
+                x: X,
+                y: Y,
+                type: 'surface',
+                colorscale: 'Viridis'
+            }}];
 
-    fig_3d.update_layout(
-        template="plotly_dark",
-        paper_bgcolor='#000000',
-        plot_bgcolor='#000000',
-        autosize=True,
-        height=600,
-        margin=dict(l=0, r=0, b=0, t=0),
-        uirevision="absolute_free_camera",
-        scene=dict(
-            bgcolor='#000000',
-            xaxis=dict(title='Strike Price (Skew)', backgroundcolor='#000000', gridcolor='#222', zerolinecolor='#444'),
-            yaxis=dict(title='Time to Maturity', backgroundcolor='#000000', gridcolor='#222', zerolinecolor='#444'),
-            zaxis=dict(title='Implied Volatility', range=[0.2, 3.2], backgroundcolor='#000000', gridcolor='#222', zerolinecolor='#444')
-        )
-    )
+            const layout = {{
+                template: 'plotly_dark',
+                paper_bgcolor: '#000000',
+                plot_bgcolor: '#000000',
+                autosize: true,
+                margin: {{l: 0, r: 0, b: 0, t: 0}},
+                scene: {{
+                    bgcolor: '#000000',
+                    xaxis: {{title: 'Strike Price (Skew)', backgroundcolor: '#000000', gridcolor: '#222', zerolinecolor: '#444'}},
+                    yaxis: {{title: 'Time to Maturity', backgroundcolor: '#000000', gridcolor: '#222', zerolinecolor: '#444'}},
+                    zaxis: {{title: 'Implied Volatility', range: [0.2, 3.2], backgroundcolor: '#000000', gridcolor: '#222', zerolinecolor: '#444'}},
+                    camera: {{ eye: {{x: 1.6, y: -1.6, z: 1.3}} }}
+                }}
+            }};
 
-    st.plotly_chart(
-        fig_3d, 
-        use_container_width=True,
-        config={'scrollZoom': True, 'displayModeBar': True},
-        key="surface_3d_free_camera"
-    )
-    st.caption("ℹ️ **Tiefschwarzes 3D-Modell:** Die Kamera ist komplett frei drehbar und zoombar (kein Einrasten oder Zurücksetzen mehr).")
+            Plotly.newPlot('plotly-div', data, layout, {{responsive: true, scrollZoom: true, displayModeBar: true}});
+
+            let frame = 0;
+            function runAnimation() {{
+                frame += 0.05;
+                let Z = [];
+                for (let i = 0; i < n; i++) {{
+                    let rowZ = [];
+                    for (let j = 0; j < n; j++) {{
+                        let xi = X[i][j];
+                        let yj = Y[i][j];
+                        let skew = 0.3 * xi;
+                        let smile = 0.28 * (xi * xi) + 0.18 * (yj * yj);
+                        let wave = 0.4 * Math.sin(xi * 0.9 - frame) * Math.cos(yj * 0.7 + frame);
+                        let z = 1.4 + smile - skew + wave;
+                        rowZ.push(Math.max(0.2, z));
+                    }}
+                    Z.push(rowZ);
+                }}
+                
+                // RESTYLE aktualisiert NUR die Z-Werte. Die Kamera bleibt zu 100% frei und rastet nie ein!
+                Plotly.restyle('plotly-div', {{z: [Z]}}, [0]);
+                
+                setTimeout(runAnimation, 40);
+            }}
+
+            setTimeout(runAnimation, 40);
+        </script>
+    </body>
+    </html>
+    """
+    components.html(surface_html, height=600)
+    st.caption("ℹ️ **Tiefschwarzes 3D-Modell:** Die Kamera ist absolut frei drehbar und zoombar (kein Einrasten). Die Volatilitäts-Welle läuft flüssig weiter.")
