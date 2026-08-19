@@ -14,7 +14,7 @@ st.sidebar.title("⚡ Terminal Control")
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 👁️ Ansicht")
-view_mode = st.sidebar.radio("Modus wählen:", ["📊 Chart (Candlestick)", "🧊 Lorenz-Attraktor (Chaos-Modell)"])
+view_mode = st.sidebar.radio("Modus wählen:", ["📊 Chart (Candlestick)", "🧊 Torus-Knoten (Morphing-Geometrie)"])
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🌍 Märkte")
@@ -180,59 +180,73 @@ if "Chart" in view_mode:
     st.caption("ℹ️ **Tiefschwarzer Live-Chart:** Vollständig freies Verschieben (Pan) und Zoomen per Mausrad/Klick.")
 
 else:
-    st.subheader(f"🧊 Lorenz-Attraktor (Chaos-Modell) — {selected_market}")
+    st.subheader(f"🧊 Torus-Knoten (Morphing-Geometrie) — {selected_market}")
     
-    raw_lorenz_html = """
+    raw_knot_html = """
     <!DOCTYPE html>
     <html>
     <head>
         <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
         <style>
-            body { margin: 0; background: #000000; color: white; font-family: sans-serif; }
+            body { margin: 0; background: #000000; color: white; font-family: sans-serif; overflow: hidden; }
             #plotly-div { width: 100%; height: 580px; background: #000000; }
             .market-badge {
                 position: absolute; top: 10px; left: 15px; z-index: 100;
-                font-family: Arial Black, sans-serif; font-size: 16px; color: orange;
+                font-family: Arial Black, sans-serif; font-size: 15px; color: orange;
                 background: rgba(0,0,0,0.9); padding: 5px 10px; border: 1px solid #333; border-radius: 4px;
             }
+            .zoom-controls {
+                position: absolute; top: 10px; right: 15px; z-index: 100;
+                display: flex; gap: 5px;
+            }
+            .zoom-btn {
+                background: rgba(20,20,20,0.9); color: #00ffcc; border: 1px solid #333;
+                font-family: Arial Black, sans-serif; font-size: 16px; width: 36px; height: 36px;
+                border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+                transition: background 0.2s, border-color 0.2s;
+            }
+            .zoom-btn:hover { background: rgba(40,40,40,1); border-color: #00ffcc; }
         </style>
     </head>
     <body>
-        <div class="market-badge">MARKET_NAME: $BASE_PRICE_VAL (Chaos Lorenz Attractor)</div>
+        <div class="market-badge">MARKET_NAME: $BASE_PRICE_VAL (Morphing Knot)</div>
+        <div class="zoom-controls">
+            <button class="zoom-btn" onclick="zoomIn()" title="Hineinzoomen">+</button>
+            <button class="zoom-btn" onclick="zoomOut()" title="Herauszoomen">-</button>
+        </div>
         <div id="plotly-div"></div>
         <script>
-            // Lorenz Attraktor Parameter
-            const sigma = 10;
-            const beta = 8.0 / 3.0;
-            const rho = 28;
-            
-            let x = 0.1, y = 1.0, z = 1.0;
-            let dt = 0.012;
-            
-            let x_trail = [], y_trail = [], z_trail = [];
-            const maxPoints = 2000;
+            const steps = 1200;
+            let p = 2, q = 3;
 
-            // Initialisierung der Bahn
-            for (let i = 0; i < maxPoints; i++) {
-                let dx = sigma * (y - x) * dt;
-                let dy = (x * (rho - z) - y) * dt;
-                let dz = (x * y - beta * z) * dt;
-                x += dx; y += dy; z += dz;
-                x_trail.push(x);
-                y_trail.push(y);
-                z_trail.push(z);
+            function getKnotPoints(frame) {
+                let x_vals = [], y_vals = [], z_vals = [], color_vals = [];
+                for (let i = 0; i <= steps; i++) {
+                    let t = (i / steps) * Math.PI * 2 * p;
+                    let r = 1.6 + 0.6 * Math.cos(q * t + frame);
+                    let x = r * Math.cos(p * t + frame * 0.3);
+                    let y = r * Math.sin(p * t + frame * 0.3);
+                    let z = 1.2 * Math.sin(q * t + frame);
+                    x_vals.push(x);
+                    y_vals.push(y);
+                    z_vals.push(z);
+                    color_vals.push(t);
+                }
+                return { x: x_vals, y: y_vals, z: z_vals, color: color_vals };
             }
+
+            let initialData = getKnotPoints(0);
 
             const data = [{
                 type: 'scatter3d',
                 mode: 'lines',
-                x: x_trail,
-                y: y_trail,
-                z: z_trail,
+                x: initialData.x,
+                y: initialData.y,
+                z: initialData.z,
                 line: {
-                    color: z_trail,
-                    colorscale: 'Viridis',
-                    width: 3
+                    color: initialData.color,
+                    colorscale: 'Plasma',
+                    width: 6
                 }
             }];
 
@@ -247,45 +261,40 @@ else:
                     xaxis: {showgrid: false, zeroline: false, showticklabels: false, title: ''},
                     yaxis: {showgrid: false, zeroline: false, showticklabels: false, title: ''},
                     zaxis: {showgrid: false, zeroline: false, showticklabels: false, title: ''},
-                    camera: { eye: {x: 1.5, y: -1.8, z: 1.2} }
+                    camera: { eye: {x: 1.6, y: -1.6, z: 1.3} }
                 }
             };
 
-            Plotly.newPlot('plotly-div', data, layout, {responsive: true, scrollZoom: true, displayModeBar: true});
+            let plotDiv = document.getElementById('plotly-div');
+            Plotly.newPlot(plotDiv, data, layout, {responsive: true, scrollZoom: true, displayModeBar: true});
+
+            function zoomIn() {
+                let cam = plotDiv._fullLayout.scene.camera;
+                let newEye = { x: cam.eye.x * 0.75, y: cam.eye.y * 0.75, z: cam.eye.z * 0.75 };
+                Plotly.relayout(plotDiv, {'scene.camera.eye': newEye});
+            }
+
+            function zoomOut() {
+                let cam = plotDiv._fullLayout.scene.camera;
+                let newEye = { x: cam.eye.x * 1.25, y: cam.eye.y * 1.25, z: cam.eye.z * 1.25 };
+                Plotly.relayout(plotDiv, {'scene.camera.eye': newEye});
+            }
 
             let isInteracting = false;
-            let plotDiv = document.getElementById('plotly-div');
-
             plotDiv.addEventListener('mousedown', () => { isInteracting = true; });
             window.addEventListener('mouseup', () => { isInteracting = false; });
             plotDiv.addEventListener('touchstart', () => { isInteracting = true; });
             window.addEventListener('touchend', () => { isInteracting = false; });
 
+            let frame = 0;
             function runAnimation() {
                 if (!isInteracting) {
-                    // Mehrere Schritte pro Frame für flüssiges Wachstum
-                    for(let s = 0; s < 3; s++) {
-                        let dx = sigma * (y - x) * dt;
-                        let dy = (x * (rho - z) - y) * dt;
-                        let dz = (x * y - beta * z) * dt;
-                        x += dx; y += dy; z += dz;
-                        
-                        x_trail.push(x);
-                        y_trail.push(y);
-                        z_trail.push(z);
-                        
-                        if (x_trail.length > maxPoints) {
-                            x_trail.shift();
-                            y_trail.shift();
-                            z_trail.shift();
-                        }
-                    }
-
-                    Plotly.restyle('plotly-div', {
-                        x: [x_trail],
-                        y: [y_trail],
-                        z: [z_trail],
-                        'line.color': [z_trail]
+                    frame += 0.03;
+                    let currentData = getKnotPoints(frame);
+                    Plotly.restyle(plotDiv, {
+                        x: [currentData.x],
+                        y: [currentData.y],
+                        z: [currentData.z]
                     }, [0]);
                 }
                 setTimeout(runAnimation, 40);
@@ -297,11 +306,11 @@ else:
     </html>
     """
     
-    lorenz_html = (
-        raw_lorenz_html
+    knot_html = (
+        raw_knot_html
         .replace("MARKET_NAME", selected_market)
         .replace("BASE_PRICE_VAL", f"{base_price:,.2f}")
     )
     
-    components.html(lorenz_html, height=600)
-    st.caption("ℹ️ **Lorenz-Attraktor:** Ein unendliches, chaotisches System, das sich live im 3D-Raum zeichnet. Die Kamera bleibt voll steuerbar.")
+    components.html(knot_html, height=600)
+    st.caption("ℹ️ **Torus-Knoten (Morphing):** Eine sich fließend transformierende, dreidimensionale geometrische Schleife. Nutze die Zoom-Buttons oder drehe das Modell frei mit der Maus.")
