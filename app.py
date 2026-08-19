@@ -313,7 +313,7 @@ def get_persistent_candles_html(df, title_text, key_suffix=""):
     </html>
     """
 
-# 💡 100% Flickerfreie Quanten-Membran (3D) durch stabil gehaltene HTML-Struktur
+# 💡 3D Quanten-Membran mit intelligenter Interaktions-Erkennung (Kamera drehbar!)
 def get_persistent_quantum_html(market_name, vol_num, key_suffix=""):
     return f"""
     <!DOCTYPE html>
@@ -414,6 +414,7 @@ def get_persistent_quantum_html(market_name, vol_num, key_suffix=""):
             let plotDiv = document.getElementById('plotly-div_{key_suffix}');
             Plotly.newPlot(plotDiv, data, layout, {{responsive: true, scrollZoom: true}});
 
+            # Kamera-Änderungen in SessionStorage sichern
             plotDiv.on('plotly_relayout', function(eventData) {{
                 if (eventData && eventData['scene.camera']) {{
                     sessionStorage.setItem('cam_{key_suffix}', JSON.stringify(eventData['scene.camera']));
@@ -422,11 +423,20 @@ def get_persistent_quantum_html(market_name, vol_num, key_suffix=""):
                 }}
             }});
 
+            # Interaktions-Erkennung: Animation pausieren, wenn der Nutzer die Kamera dreht/klickt
+            let isUserInteracting = false;
+            plotDiv.addEventListener('mousedown', function() {{ isUserInteracting = true; }});
+            window.addEventListener('mouseup', function() {{ isUserInteracting = false; }});
+            plotDiv.addEventListener('touchstart', function() {{ isUserInteracting = true; }});
+            window.addEventListener('touchend', function() {{ isUserInteracting = false; }});
+
             let frame = 0;
             function animate() {{
-                frame += 0.02;
-                let currentData = getSurface(frame);
-                Plotly.restyle(plotDiv, {{ z: [currentData.z] }}, [0]);
+                if (!isUserInteracting) {{
+                    frame += 0.02;
+                    let currentData = getSurface(frame);
+                    Plotly.restyle(plotDiv, {{ z: [currentData.z] }}, [0]);
+                }}
                 requestAnimationFrame(animate);
             }}
             requestAnimationFrame(animate);
@@ -435,7 +445,7 @@ def get_persistent_quantum_html(market_name, vol_num, key_suffix=""):
     </html>
     """
 
-# Volatilitätsfaktor stabil berechnen (auf 1 Nachkommastelle gerundet gegen minimale Ticker-Schwankungen)
+# Volatilitätsfaktor stabil berechnen
 if df_raw is not None and len(df_raw) > 1:
     try:
         volatility_factor = float((df_raw['High'].max() - df_raw['Low'].min()) / base_price * 50)
