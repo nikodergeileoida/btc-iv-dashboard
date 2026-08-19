@@ -15,7 +15,7 @@ st.sidebar.title("⚡ Terminal Control")
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 👁️ Ansicht")
-view_mode = st.sidebar.radio("Modus wählen:", ["📊 Live-Chart (Echte Marktdaten + Ticker)", "🧊 Quanten-Membran (Live-Feed Gekoppelt)"])
+view_mode = st.sidebar.radio("Modus wählen:", ["📊 Live-Chart (Echte Marktdaten + Ticker)", "🧊 Torus-Knoten (Komplexes 3D-Mesh)"])
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🌍 Märkte")
@@ -145,7 +145,6 @@ if "Chart" in view_mode:
                 modeBarButtonsToRemove: ['zoom2d', 'select2d', 'lasso2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d']
             }});
 
-            // Live-Ticker Simulation für die letzte Kerze basierend auf dem echten Startpreis
             setInterval(() => {{
                 if (closes.length > 0) {{
                     let lastIdx = closes.length - 1;
@@ -172,7 +171,7 @@ if "Chart" in view_mode:
     st.caption("ℹ️ **Echtdaten-Chart mit Live-Tails:** Basisdaten von Yahoo Finance mit flüssiger Echtzeit-Aktualisierung.")
 
 else:
-    st.subheader(f"🧊 Quanten-Membran (Gekoppelt an {selected_market}) — {selected_market}")
+    st.subheader(f"🧊 Torus-Knoten Mesh (Gekoppelt an {selected_market}) — {selected_market}")
     
     if df_data is not None and len(df_data) > 1:
         volatility_factor = float((df_data['High'].max() - df_data['Low'].min()) / base_price * 50)
@@ -214,21 +213,30 @@ else:
         </div>
         <div id="plotly-div"></div>
         <script>
-            const n = 45;
+            const m = 50;
+            const p = 40;
             const vol = {volatility_factor};
 
-            function getSurface(frame) {{
+            function getTorusKnot(frame) {{
                 let x = [], y = [], z = [];
-                for (let i = 0; i < n; i++) {{
+                for (let i = 0; i < m; i++) {{
                     let rowX = [], rowY = [], rowZ = [];
-                    let u = (i / (n - 1)) * 5 - 2.5;
-                    for (let j = 0; j < n; j++) {{
-                        let v = (j / (n - 1)) * 5 - 2.5;
-                        let r = Math.sqrt(u*u + v*v);
-                        let pz = Math.sin(r * 2 - frame) * Math.cos(u * 0.8 + frame * 0.5) * vol * 1.2;
+                    let u = (i / (m - 1)) * Math.PI * 2;
+                    for (let j = 0; j < p; j++) {{
+                        let v = (j / (p - 1)) * Math.PI * 2;
                         
-                        rowX.push(u);
-                        rowY.push(v);
+                        // Torus-Knoten mathematische Parametrisierung mit Live-Volatilitäts-Pulsieren
+                        let r = 1.5 + 0.4 * Math.cos(3 * u + frame * 0.5) * vol;
+                        let px = r * Math.cos(2 * u);
+                        let py = r * Math.sin(2 * u);
+                        let pz = 0.5 * Math.sin(3 * u) + 0.3 * Math.sin(v) * vol;
+                        
+                        // Zusätzliche Verdrehung für komplexe Oberflächenstruktur
+                        px += 0.2 * Math.cos(v) * Math.cos(u);
+                        py += 0.2 * Math.cos(v) * Math.sin(u);
+
+                        rowX.push(px);
+                        rowY.push(py);
                         rowZ.push(pz);
                     }}
                     x.push(rowX);
@@ -238,16 +246,16 @@ else:
                 return {{ x: x, y: y, z: z }};
             }}
 
-            let initialData = getSurface(0);
+            let initialData = getTorusKnot(0);
 
             const data = [{{
                 type: 'surface',
                 x: initialData.x,
                 y: initialData.y,
                 z: initialData.z,
-                colorscale: 'Electric',
+                colorscale: 'Jet',
                 showscale: false,
-                lighting: {{ ambient: 0.4, diffuse: 0.8, specular: 0.5, roughness: 0.3 }}
+                lighting: {{ ambient: 0.3, diffuse: 0.9, specular: 0.8, roughness: 0.2 }}
             }}];
 
             const layout = {{
@@ -261,7 +269,7 @@ else:
                     xaxis: {{showgrid: false, zeroline: false, showticklabels: false, title: ''}},
                     yaxis: {{showgrid: false, zeroline: false, showticklabels: false, title: ''}},
                     zaxis: {{showgrid: false, zeroline: false, showticklabels: false, title: '', range: [-3, 3]}},
-                    camera: {{ eye: {{x: 1.5, y: -1.5, z: 1.2}} }}
+                    camera: {{ eye: {{x: 1.8, y: -1.8, z: 1.4}} }}
                 }}
             }};
 
@@ -287,8 +295,8 @@ else:
             let frame = 0;
             function runAnimation() {{
                 if (!isInteracting) {{
-                    frame += 0.05;
-                    let currentData = getSurface(frame);
+                    frame += 0.04;
+                    let currentData = getTorusKnot(frame);
                     Plotly.restyle(plotDiv, {{
                         x: [currentData.x],
                         y: [currentData.y],
@@ -304,4 +312,4 @@ else:
     </html>
     """
     components.html(raw_surface_html, height=600)
-    st.caption(f"ℹ️ **Live-Gekoppelte Membran:** Schwingt passend zur Marktvolatilität von **{selected_market}**.")
+    st.caption(f"ℹ️ **Torus-Knoten Mesh:** Eine komplexe, ineinander verschlungene 3D-Fläche, deren Dynamik direkt an die Live-Volatilität von **{selected_market}** gekoppelt ist.")
