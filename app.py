@@ -4,6 +4,7 @@ import yfinance as yf
 import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime
+import time
 
 # 1. Konfiguration
 st.set_page_config(
@@ -12,8 +13,12 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. Sidebar Navigation & Markt-Auswahl
+# 2. Sidebar Navigation & Live-Feed Control
 st.sidebar.title("⚡ Terminal Control")
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 🔄 Live-Feed Engine")
+live_feed = st.sidebar.checkbox("⚡ Live-Feed aktiv (10s Tick)", value=False)
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 👁️ Ansicht & Engine")
@@ -54,8 +59,8 @@ else:
 selected_market = st.sidebar.selectbox("🎯 Spezieller Markt:", list(market_map.keys()))
 ticker_symbol = market_map[selected_market]
 
-# Echte Daten von Yahoo Finance laden
-@st.cache_data(ttl=60)
+# Echte Live-Daten von Yahoo Finance laden
+@st.cache_data(ttl=5)
 def fetch_market_data(symbol):
     try:
         t = yf.Ticker(symbol)
@@ -141,7 +146,7 @@ def get_tradingview_html(symbol):
     </html>
     """
 
-# Funktion für Eigene Kerzen (Plotly Pro-Chart)
+# Funktion für Eigene Kerzen mit TradingView-ähnlicher Navigation (Pan, Scroll-Zoom, Fadenkreuz)
 def render_custom_candles(df, title_text):
     if df is None or df.empty:
         st.warning("Keine Kerzen-Daten verfügbar.")
@@ -163,9 +168,24 @@ def render_custom_candles(df, title_text):
         plot_bgcolor='#000000',
         margin=dict(l=0, r=0, t=30, b=0),
         xaxis_rangeslider_visible=False,
-        title=dict(text=title_text, font=dict(size=14, color='orange'))
+        title=dict(text=title_text, font=dict(size=14, color='orange')),
+        dragmode='pan',  # Erlaubt das Verschieben des Charts per Mausklick wie bei TradingView
+        hovermode='x unified'
     )
-    st.plotly_chart(fig, use_container_width=True)
+    
+    # Achsen-Grid und Fadenkreuz im TradingView-Stil (Preisachse rechts)
+    fig.update_xaxes(gridcolor='#1a1a1a', showspikes=True, spikecolor='#555', spikethickness=1, spikedash='dot')
+    fig.update_yaxes(gridcolor='#1a1a1a', side='right', showspikes=True, spikecolor='#555', spikethickness=1, spikedash='dot')
+    
+    # Scroll-Zoom aktivieren und unnötige Buttons aus der Toolbar ausblenden
+    config = {
+        'scrollZoom': True,
+        'displayModeBar': True,
+        'modeBarButtonsToRemove': ['lasso2d', 'select2d'],
+        'responsive': True
+    }
+    
+    st.plotly_chart(fig, use_container_width=True, config=config)
 
 # Hilfsfunktion für Quanten-Membran (3D)
 def get_quantum_html(market_name, price, vol_num, vol_str):
@@ -282,7 +302,7 @@ if "TradingView Live-Terminal" in view_mode:
     components.html(get_tradingview_html(ticker_symbol), height=620, scrolling=False)
 
 elif "Eigene Kerzen" in view_mode:
-    st.subheader(f"🕯️ Eigene Kerzen (Custom Python Engine) — {selected_market}")
+    st.subheader(f"🕯️ Eigene Kerzen — {selected_market}")
     render_custom_candles(df_data, f"Custom OHLC Stream — {selected_market}")
 
 elif "Quanten-Membran" in view_mode:
@@ -302,3 +322,8 @@ else:  # Split-View (Beide nebeneinander: Eigene Kerzen + 3D Membran)
         st.markdown("**🧊 Quanten-Membran (3D)**")
         html_content = get_quantum_html(selected_market, f"{base_price:,.2f}", volatility_factor, f"{volatility_factor:.2f}")
         components.html(html_content, height=580)
+
+# Automatischer Live-Feed Loop (10 Sekunden Intervall)
+if live_feed:
+    time.sleep(10)
+    st.rerun()
