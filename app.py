@@ -65,7 +65,7 @@ col3.metric("Modus", view_mode, "Aktiv")
 
 st.divider()
 
-# 4. Ansichten via High-Performance JS-Komponenten (Tiefschwarz & Frei beweglich)
+# 4. Ansichten via High-Performance JS-Komponenten
 if "Chart" in view_mode:
     st.subheader(f"📈 Candlestick Chart — {selected_market}")
     
@@ -177,7 +177,7 @@ if "Chart" in view_mode:
     )
     
     components.html(chart_html, height=600)
-    st.caption("ℹ️ **Tiefschwarzer Live-Chart:** Vollständig freies Verschieben (Pan) und Zoomen per Mausrad/Klick. Aktualisiert sich sekündlich im Hintergrund.")
+    st.caption("ℹ️ **Tiefschwarzer Live-Chart:** Vollständig freies Verschieben (Pan) und Zoomen per Mausrad/Klick.")
 
 else:
     st.subheader(f"🧊 3D Volatility Surface — {selected_market}")
@@ -250,26 +250,35 @@ else:
 
             Plotly.newPlot('plotly-div', data, layout, {responsive: true, scrollZoom: true, displayModeBar: true});
 
+            // Intelligente Erkennung: Pausiert die Animation sofort, wenn du die Kamera mit der Maus drehst/zoomst
+            let isInteracting = false;
+            let plotDiv = document.getElementById('plotly-div');
+
+            plotDiv.addEventListener('mousedown', () => { isInteracting = true; });
+            window.addEventListener('mouseup', () => { isInteracting = false; });
+            plotDiv.addEventListener('touchstart', () => { isInteracting = true; });
+            window.addEventListener('touchend', () => { isInteracting = false; });
+
             let frame = 0;
             function runAnimation() {
-                frame += 0.05;
-                let Z = [];
-                for (let i = 0; i < n; i++) {
-                    let rowZ = [];
-                    for (let j = 0; j < n; j++) {
-                        let xi = X[i][j];
-                        let yj = Y[i][j];
-                        let skew = 0.3 * xi;
-                        let smile = 0.28 * (xi * xi) + 0.18 * (yj * yj);
-                        let wave = 0.4 * Math.sin(xi * 0.9 - frame) * Math.cos(yj * 0.7 + frame);
-                        let z = 1.4 + smile - skew + wave;
-                        rowZ.push(Math.max(0.2, z));
+                if (!isInteracting) {
+                    frame += 0.05;
+                    let Z = [];
+                    for (let i = 0; i < n; i++) {
+                        let rowZ = [];
+                        for (let j = 0; j < n; j++) {
+                            let xi = X[i][j];
+                            let yj = Y[i][j];
+                            let skew = 0.3 * xi;
+                            let smile = 0.28 * (xi * xi) + 0.18 * (yj * yj);
+                            let wave = 0.4 * Math.sin(xi * 0.9 - frame) * Math.cos(yj * 0.7 + frame);
+                            let z = 1.4 + smile - skew + wave;
+                            rowZ.push(Math.max(0.2, z));
+                        }
+                        Z.push(rowZ);
                     }
-                    Z.push(rowZ);
+                    Plotly.restyle('plotly-div', {z: [Z]}, [0]);
                 }
-                
-                Plotly.restyle('plotly-div', {z: [Z]}, [0]);
-                
                 setTimeout(runAnimation, 40);
             }
 
@@ -286,4 +295,4 @@ else:
     )
     
     components.html(surface_html, height=600)
-    st.caption("ℹ️ **Tiefschwarzes 3D-Modell:** Die Kamera bleibt absolut frei drehbar und zoombar. Die Volatilitäts-Welle läuft flüssig weiter.")
+    st.caption("ℹ️ **Tiefschwarzes 3D-Modell:** Sobald du klickst und ziehst, pausiert die Animation automatisch – du kannst die Kamera nun völlig frei in jede Richtung drehen und zoomen.")
