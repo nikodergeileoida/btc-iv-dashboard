@@ -76,7 +76,7 @@ if df_raw is not None and not df_raw.empty:
         df_data['Close'] = df_data['Close'].rolling(window=smoothing).mean()
         df_data.dropna(inplace=True)
     
-    # Offset anwenden (falls du deine eigenen Kerzen verschieben willst)
+    # Offset anwenden
     df_data['Open'] += price_offset
     df_data['High'] += price_offset
     df_data['Low'] += price_offset
@@ -150,8 +150,8 @@ def render_custom_candles(df, title_text):
         high=df['High'],
         low=df['Low'],
         close=df['Close'],
-        increasing_line_color='#00F5D4', # Neon-Türkis für steigend
-        decreasing_line_color='#F72585'  # Neon-Pink für fallend
+        increasing_line_color='#00F5D4', 
+        decreasing_line_color='#F72585'  
     )])
     
     fig.update_layout(
@@ -223,7 +223,7 @@ def get_quantum_html(market_name, price, vol_num, vol_str):
                     x.push(rowX); y.push(rowY); z.push(rowZ);
                 }}
                 return {{ x: x, y: y, z: z }};
-            }
+            }}
 
             let initialData = getSurface(0);
             const data = [{{
@@ -254,7 +254,7 @@ def get_quantum_html(market_name, price, vol_num, vol_str):
             function animate() {{
                 frame += 0.02;
                 let currentData = getSurface(frame);
-                Plotly.restyle(plotDiv, {{ x: [currentData.x], y: [currentData.y], z: [currentData.z] }}[0]);
+                Plotly.restyle(plotDiv, {{ x: [currentData.x], y: [currentData.y], z: [currentData.z] }}, [0]);
                 requestAnimationFrame(animate);
             }}
             requestAnimationFrame(animate);
