@@ -15,7 +15,7 @@ st.sidebar.title("⚡ Terminal Control")
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 👁️ Ansicht")
-view_mode = st.sidebar.radio("Modus wählen:", ["📊 Live-Chart (Echte Marktdaten + Ticker)", "🧊 Quanten-Membran (Matt & Butter-Smooth)"])
+view_mode = st.sidebar.radio("Modus wählen:", ["📈 TradingView Live-Terminal", "🧊 Quanten-Membran (Matt & Butter-Smooth)"])
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🌍 Märkte")
@@ -24,11 +24,11 @@ asset_class = st.sidebar.selectbox(
     ["Kryptowährungen", "US-Märkte", "Deutsche Märkte (Xetra)", "Forex & Rohstoffe"]
 )
 
-# Ticker-Mapping für yfinance
+# Ticker-Mapping für yfinance & TradingView
 if asset_class == "Kryptowährungen":
     market_map = {"BTCUSDT": "BTC-USD", "ETHUSDT": "ETH-USD", "SOLUSDT": "SOL-USD", "BNBUSDT": "BNB-USD", "XRPUSDT": "XRP-USD"}
 elif asset_class == "US-Märkte":
-    market_map = {"S&P 500 (SPY)": "SPY", "Nasdaq (QQQ)": "QQQ", "Apple (AAPL)": "AAPL", "Tesla (TSLA)": "TSLA", "NVIDIA (NVDA)": "NVDA"}
+    market_map = {"S&P 500 (SPY)": "SPY", "Nasdaq (QQQ)": "QQQ", "Apple (AAPL)": "AAPL", "Tesla (TSLA)": "TSLA", "NVIDIA (NVDA)": "NVIDIA"}
 elif asset_class == "Deutsche Märkte (Xetra)":
     market_map = {"DAX Index": "^GDAXI", "SAP SE": "SAP.DE", "Siemens": "SIE.DE", "Allianz": "ALV.DE"}
 else:
@@ -37,7 +37,7 @@ else:
 selected_market = st.sidebar.selectbox("🎯 Spezieller Markt:", list(market_map.keys()))
 ticker_symbol = market_map[selected_market]
 
-# Echte Daten von Yahoo Finance laden
+# Echte Daten von Yahoo Finance laden (für die Volatilitäts-Kopplung der 3D-Ansicht)
 @st.cache_data(ttl=60)
 def fetch_market_data(symbol):
     try:
@@ -77,98 +77,60 @@ col3.metric("Modus", view_mode, "Aktiv")
 
 st.divider()
 
-# 4. Ansichten mit echten Daten und Live-Tick
-if "Chart" in view_mode:
-    st.subheader(f"📈 Echter Live-Candlestick Chart — {selected_market}")
+# 4. Ansichten (TradingView Chart vs. 3D Quanten-Membran)
+if "TradingView" in view_mode:
+    st.subheader(f"📈 TradingView Live-Terminal — {selected_market}")
+
+    # Mapping der yfinance-Ticker zu den offiziellen TradingView-Symbolen
+    tv_symbol_map = {
+        "BTC-USD": "BINANCE:BTCUSDT",
+        "ETH-USD": "BINANCE:ETHUSDT",
+        "SOL-USD": "BINANCE:SOLUSDT",
+        "BNB-USD": "BINANCE:BNBUSDT",
+        "XRP-USD": "BINANCE:XRPUSDT",
+        "SPY": "AMEX:SPY",
+        "QQQ": "NASDAQ:QQQ",
+        "AAPL": "NASDAQ:AAPL",
+        "TSLA": "NASDAQ:TSLA",
+        "NVIDIA": "NASDAQ:NVDA",
+        "^GDAXI": "XETR:DAX",
+        "SAP.DE": "XETR:SAP",
+        "SIE.DE": "XETR:SIE",
+        "ALV.DE": "XETR:ALV",
+        "GC=F": "COMEX:GC1!",
+        "SI=F": "NYMEX:SI1!",
+        "CL=F": "NYMEX:CL1!",
+        "EURUSD=X": "FX_IDC:EURUSD"
+    }
     
-    if df_data is not None and not df_data.empty:
-        times = [t.isoformat() for t in df_data.index]
-        opens = df_data['Open'].tolist()
-        highs = df_data['High'].tolist()
-        lows = df_data['Low'].tolist()
-        closes = df_data['Close'].tolist()
-    else:
-        times, opens, highs, lows, closes = [], [], [], [], []
+    tv_symbol = tv_symbol_map.get(ticker_symbol, "BINANCE:BTCUSDT")
 
-    raw_chart_html = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
-        <style>
-            body {{ margin: 0; background: #000000; color: white; font-family: sans-serif; }}
-            #chart-div {{ width: 100%; height: 580px; background: #000000; }}
-            .market-badge {{
-                position: absolute; top: 10px; left: 15px; z-index: 100;
-                font-family: Arial Black, sans-serif; font-size: 16px; color: orange;
-                background: rgba(0,0,0,0.9); padding: 5px 10px; border: 1px solid #333; border-radius: 4px;
-            }}
-        </style>
-    </head>
-    <body>
-        <div class="market-badge" id="badge">{selected_market}: ${base_price:,.2f}</div>
-        <div id="chart-div"></div>
-        <script>
-            let times = {times};
-            let opens = {opens};
-            let highs = {highs};
-            let lows = {lows};
-            let closes = {closes};
-            let basePrice = {base_price};
-
-            let trace = {{
-                type: 'candlestick',
-                x: times,
-                open: opens,
-                high: highs,
-                low: lows,
-                close: closes,
-                increasing: {{ line: {{ color: '#00ffcc' }} }},
-                decreasing: {{ line: {{ color: '#ff0055' }} }}
-            }};
-
-            let layout = {{
-                template: 'plotly_dark',
-                paper_bgcolor: '#000000',
-                plot_bgcolor: '#000000',
-                title: 'Echtzeit-Marktdaten ({selected_market})',
-                dragmode: 'pan',
-                xaxis: {{ rangeslider: {{ visible: true }}, gridcolor: '#1a1a1a', zerolinecolor: '#333' }},
-                yaxis: {{ side: 'right', tickformat: ',.2f', gridcolor: '#1a1a1a', zerolinecolor: '#333' }},
-                margin: {{ l: 20, r: 50, b: 20, t: 50 }}
-            }};
-
-            Plotly.newPlot('chart-div', [trace], layout, {{
-                responsive: true,
-                scrollZoom: true,
-                displayModeBar: true,
-                modeBarButtonsToRemove: ['zoom2d', 'select2d', 'lasso2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d']
-            }});
-
-            setInterval(() => {{
-                if (closes.length > 0) {{
-                    let lastIdx = closes.length - 1;
-                    let tick = (Math.random() - 0.49) * (basePrice * 0.0002);
-                    closes[lastIdx] += tick;
-                    highs[lastIdx] = Math.max(highs[lastIdx], closes[lastIdx]);
-                    lows[lastIdx] = Math.min(lows[lastIdx], closes[lastIdx]);
-
-                    let curP = closes[lastIdx];
-                    document.getElementById('badge').innerText = '{selected_market}: $' + curP.toLocaleString('en-US', {{minimumFractionDigits: 2, maximumFractionDigits: 2}});
-
-                    Plotly.update('chart-div', {{
-                        close: [closes],
-                        high: [highs],
-                        low: [lows]
-                    }}, {{}}, [0]);
-                }}
-            }}, 1000);
-        </script>
-    </body>
-    </html>
+    # TradingView HTML-Embed Widget (Dark Theme)
+    tv_widget_html = f"""
+    <div class="tradingview-widget-container" style="height:580px;width:100%">
+      <div class="tradingview-widget-container__widget" style="height:100%;width:100%"></div>
+      <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
+      {{
+        "autosize": true,
+        "symbol": "{tv_symbol}",
+        "interval": "D",
+        "timezone": "Etc/UTC",
+        "theme": "dark",
+        "style": "1",
+        "locale": "de",
+        "enable_publishing": false,
+        "hide_top_toolbar": false,
+        "hide_legend": false,
+        "save_image": false,
+        "calendar": false,
+        "support_host": "https://www.tradingview.com"
+      }}
+      </script>
+    </div>
     """
-    components.html(raw_chart_html, height=600)
-    st.caption("ℹ️ **Echtdaten-Chart mit Live-Tails:** Basisdaten von Yahoo Finance mit flüssiger Echtzeit-Aktualisierung.")
+    
+    components.html(tv_widget_html, height=600)
+    st.caption(f"ℹ️ **TradingView Echtzeit-Chart:** Vollwertiges, interaktives Live-Terminal für **{selected_market}**.")
 
 else:
     st.subheader(f"🧊 Quanten-Membran (Matt & Butter-Smooth) — {selected_market}")
@@ -235,7 +197,7 @@ else:
                 x: initialData.x,
                 y: initialData.y,
                 z: initialData.z,
-                // Exakte Farbgebung wie im Screenshot (Violett unten, Orange/Gelb oben)
+                // Exakte Farbgebung (Violett bis Gelb)
                 colorscale: [
                     [0, '#4b0082'],
                     [0.3, '#9400d3'],
@@ -243,7 +205,7 @@ else:
                     [1, '#ffff00']
                 ],
                 showscale: false,
-                // Matte Textur (hohe Rauheit, fast kein Glanz)
+                // Matte Textur (hohe Rauheit, minimaler Glanz)
                 lighting: { ambient: 0.6, diffuse: 0.8, specular: 0.05, roughness: 0.95 }
             }];
 
@@ -265,10 +227,10 @@ else:
             let plotDiv = document.getElementById('plotly-div');
             Plotly.newPlot(plotDiv, data, layout, {responsive: true, scrollZoom: true});
 
-            // Butterweiche Animation über requestAnimationFrame statt setInterval
+            // Butterweiche Animation mit requestAnimationFrame
             let frame = 0;
             function animate() {
-                frame += 0.02; // Kleinere Schritte für maximale Fluidität
+                frame += 0.02;
                 let currentData = getSurface(frame);
                 Plotly.restyle(plotDiv, {
                     x: [currentData.x],
@@ -284,4 +246,4 @@ else:
     """.replace("MARKET_PLACEHOLDER", selected_market).replace("PRICE_PLACEHOLDER", f"{base_price:,.2f}").replace("VOL_PLACEHOLDER_NUM", str(volatility_factor)).replace("VOL_PLACEHOLDER", f"{volatility_factor:.2f}")
 
     components.html(raw_surface_html, height=600)
-    st.caption(f"ℹ️ **Quanten-Membran (Matt & Butter-Smooth):** Matte Shader-Textur, exakte Farbpalette und flüssige 60+ FPS Kamerasteuerung gekoppelt an **{selected_market}**.")
+    st.caption(f"ℹ️ **Quanten-Membran (Matt & Butter-Smooth):** Matte Shader-Textur, exakte Farbpalette und flüssige Kamerasteuerung gekoppelt an **{selected_market}**.")
