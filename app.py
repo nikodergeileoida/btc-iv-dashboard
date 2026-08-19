@@ -2,7 +2,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 import yfinance as yf
 import pandas as pd
-import plotly.graph_objects as go
+import json
 from datetime import datetime
 import time
 import requests
@@ -30,7 +30,7 @@ view_mode = st.sidebar.radio("Modus wählen:", [
     "⚡ Beide nebeneinander (Split-View)"
 ])
 
-# Standardwerte definieren, damit es zu keinem NameError kommt
+# Standardwerte definieren
 smoothing = 1
 price_offset = 0.0
 
@@ -47,7 +47,7 @@ asset_class = st.sidebar.selectbox(
     ["Kryptowährungen", "US-Märkte", "Deutsche Märkte (Xetra)", "Forex & Rohstoffe"]
 )
 
-# Erweitertes Ticker-Mapping mit direktem Fallback für Yahoo Finance
+# Ticker-Mapping
 if asset_class == "Kryptowährungen":
     market_map = {
         "BTCUSDT": {"binance": "BTCUSDT", "yf": "BTC-USD"},
@@ -75,13 +75,12 @@ else:
 selected_market = st.sidebar.selectbox("🎯 Spezieller Markt:", list(market_map.keys()))
 market_info = market_map[selected_market]
 
-# 3. Robuste Datenbeschaffung mit automatischem Fallback
+# 3. Robuste Datenbeschaffung
 @st.cache_data(ttl=5)
 def fetch_robust_market_data(asset_cls, info):
     df = pd.DataFrame()
     current_price = 100.0
 
-    # Versuch 1: Binance API (nur bei Krypto)
     if asset_cls == "Kryptowährungen" and "binance" in info:
         try:
             url = f"https://api.binance.com/api/v3/klines?symbol={info['binance']}&interval=1m&limit=150"
@@ -102,9 +101,8 @@ def fetch_robust_market_data(asset_cls, info):
                 current_price = df['Close'].iloc[-1]
                 return df[['Open', 'High', 'Low', 'Close']], current_price
         except Exception:
-            pass  # Fallback greift automatisch, falls Binance fehlschlägt
+            pass
 
-    # Versuch 2: Yahoo Finance (Fallback oder Standard für Aktien/Forex)
     try:
         yf_symbol = info.get("yf", list(info.values())[0])
         t = yf.Ticker(yf_symbol)
@@ -132,7 +130,6 @@ if df_raw is not None and not df_raw.empty:
         df_data['Close'] = df_data['Close'].rolling(window=smoothing).mean()
         df_data.dropna(inplace=True)
     
-    # Offset anwenden
     df_data['Open'] += price_offset
     df_data['High'] += price_offset
     df_data['Low'] += price_offset
@@ -195,46 +192,95 @@ def get_tradingview_html(symbol_key):
     </html>
     """
 
-# Funktion für Eigene Kerzen im perfekten TradingView-Design mit Pan & Scroll-Zoom
-def render_custom_candles(df, title_text):
+# Funktion für persistente Custom-Kerzen via JavaScript (Hält den Zoom-Status beim Tick)
+def render_persistent_custom_candles(df, title_text):
     if df is None or df.empty:
-        st.warning("Keine Kerzen-Daten verfügbar. (Bitte prüfen Sie die Internetverbindung oder wählen Sie einen anderen Markt).")
+        st.warning("Keine Kerzen-Daten verfügbar.")
         return
     
-    fig = go.Figure(data=[go.Candlestick(
-        x=df.index,
-        open=df['Open'],
-        high=df['High'],
-        low=df['Low'],
-        close=df['Close'],
-        increasing_line_color='#089981',  
-        decreasing_line_color='#F23645',  
-        increasing_fillcolor='#089981',
-        decreasing_fillcolor='#F23645'
-    )])
-    
-    fig.update_layout(
-        template='plotly_dark',
-        paper_bgcolor='#131722',  
-        plot_bgcolor='#131722',
-        margin=dict(l=10, r=50, t=30, b=10),
-        xaxis_rangeslider_visible=False,
-        title=dict(text=title_text, font=dict(size=14, color='#d1d4dc')),
-        dragmode='pan',
-        hovermode='x unified'
-    )
-    
-    fig.update_xaxes(gridcolor='#1f293d', showspikes=True, spikecolor='#787b86', spikethickness=1, spikedash='dot')
-    fig.update_yaxes(gridcolor='#1f293d', side='right', showspikes=True, spikecolor='#787b86', spikethickness=1, spikedash='dot')
-    
-    config = {
-        'scrollZoom': True,
-        'displayModeBar': True,
-        'modeBarButtonsToRemove': ['lasso2d', 'select2d'],
-        'responsive': True
-    }
-    
-    st.plotly_chart(fig, use_container_width=True, config=config)
+    # Daten in JSON konvertieren für JavaScript
+    x_data = [d.strftime('%Y-%m-%d %H:%M:%S') for d in df.index]
+    open_data = df['Open'].tolist()
+    high_data = df['High'].tolist()
+    low_data = df['Low'].tolist()
+    close_data = df['Close'].tolist()
+
+    html_code = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+        <style>
+            body {{ margin: 0; background: #131722; overflow: hidden; }}
+            #chart-div {{ width: 100%; height: 580px; }}
+        </style>
+    </head>
+    <body>
+        <div id="chart-div"></div>
+        <script>
+            const trace = {{
+                x: {json.dumps(x_data)},
+                open: {json.dumps(open_data)},
+                high: {json.dumps(high_data)},
+                low: {json.dumps(low_data)},
+                close: {json.dumps(close_data)},
+                type: 'candlestick',
+                increasing: {{ line: {{ color: '#089981' }}, fillcolor: '#089981' }},
+                decreasing: {{ line: {{ color: '#F23645' }}, fillcolor: '#F23645' }}
+            }};
+
+            const layout = {{
+                template: 'plotly_dark',
+                paper_bgcolor: '#131722',
+                plot_bgcolor: '#131722',
+                margin: {{ l: 10, r: 50, t: 30, b: 10 }},
+                xaxis: {{
+                    rangeslider: {{ visible: false }},
+                    gridcolor: '#1f293d',
+                    showspikes: true, spikecolor: '#787b86', spikethickness: 1, spikedash: 'dot'
+                }},
+                yaxis: {{
+                    side: 'right',
+                    gridcolor: '#1f293d',
+                    showspikes: true, spikecolor: '#787b86', spikethickness: 1, spikedash: 'dot'
+                }},
+                title: {{ text: {json.dumps(title_text)}, font: {{ size: 14, color: '#d1d4dc' }} }},
+                dragmode: 'pan',
+                hovermode: 'x unified'
+            }};
+
+            const config = {{
+                scrollZoom: true,
+                displayModeBar: true,
+                modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+                responsive: true
+            }};
+
+            const div = document.getElementById('chart-div');
+            
+            // Prüfen, ob der Chart schon existiert (Zoom-Zustand retten)
+            let existingLayout = div.layout;
+            let currentZoom = null;
+            if (existingLayout && existingLayout.xaxis && existingLayout.xaxis.range) {{
+                currentZoom = {{
+                    xaxis: existingLayout.xaxis.range,
+                    yaxis: existingLayout.yaxis.range
+                }};
+            }}
+
+            Plotly.newPlot(div, [trace], layout, config).then(function() {{
+                if (currentZoom) {{
+                    Plotly.relayout(div, {{
+                        'xaxis.range': currentZoom.xaxis,
+                        'yaxis.range': currentZoom.yaxis
+                    }});
+                }}
+            }});
+        </script>
+    </body>
+    </html>
+    """
+    components.html(html_code, height=600)
 
 # Hilfsfunktion für Quanten-Membran (3D)
 def get_quantum_html(market_name, price, vol_num, vol_str):
@@ -354,7 +400,7 @@ if "TradingView Live-Terminal" in view_mode:
 
 elif "Eigene Kerzen" in view_mode:
     st.subheader(f"🕯️ Eigene Kerzen (Custom Python Engine) — {selected_market}")
-    render_custom_candles(df_data, f"Custom OHLC Stream — {selected_market}")
+    render_persistent_custom_candles(df_data, f"Custom OHLC Stream — {selected_market}")
 
 elif "Quanten-Membran" in view_mode:
     st.subheader(f"🧊 Quanten-Membran (Matt) — {selected_market}")
@@ -367,7 +413,7 @@ else:
     
     with col_a:
         st.markdown("**🕯️ Eigene Kerzen (Custom)**")
-        render_custom_candles(df_data, f"Custom Stream — {selected_market}")
+        render_persistent_custom_candles(df_data, f"Custom Stream — {selected_market}")
         
     with col_b:
         st.markdown("**🧊 Quanten-Membran (3D)**")
