@@ -77,7 +77,7 @@ col3.metric("Modus", view_mode, "Aktiv")
 
 st.divider()
 
-# 4. Ansichten (TradingView Chart vs. 3D Quanten-Membran)
+# 4. Ansichten (Vergrößertes TradingView Chart vs. 3D Quanten-Membran)
 if "TradingView" in view_mode:
     st.subheader(f"📈 TradingView Live-Terminal — {selected_market}")
 
@@ -105,9 +105,9 @@ if "TradingView" in view_mode:
     
     tv_symbol = tv_symbol_map.get(ticker_symbol, "BINANCE:BTCUSDT")
 
-    # TradingView HTML-Embed Widget (Dark Theme)
+    # TradingView HTML-Embed Widget (Dark Theme) mit größerer Ansicht
     tv_widget_html = f"""
-    <div class="tradingview-widget-container" style="height:580px;width:100%">
+    <div class="tradingview-widget-container" style="height:760px;width:100%">
       <div class="tradingview-widget-container__widget" style="height:100%;width:100%"></div>
       <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
       {{
@@ -129,8 +129,8 @@ if "TradingView" in view_mode:
     </div>
     """
     
-    components.html(tv_widget_html, height=600)
-    st.caption(f"ℹ️ **TradingView Echtzeit-Chart:** Vollwertiges, interaktives Live-Terminal für **{selected_market}**.")
+    components.html(tv_widget_html, height=780)
+    st.caption(f"ℹ️ **TradingView Echtzeit-Chart:** Vergrößertes, interaktives Live-Terminal für **{selected_market}**.")
 
 else:
     st.subheader(f"🧊 Quanten-Membran (Matt & Butter-Smooth) — {selected_market}")
@@ -151,7 +151,7 @@ else:
         <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
         <style>
             body { margin: 0; background: #000000; overflow: hidden; }
-            #plotly-div { width: 100%; height: 580px; }
+            #plotly-div { width: 100%; height: 760px; }
             .market-badge {
                 position: absolute; top: 10px; left: 15px; z-index: 100;
                 font-family: Arial Black, sans-serif; font-size: 15px; color: orange;
@@ -175,7 +175,6 @@ else:
                         let v = (j / (n - 1)) * 5 - 2.5;
                         let r = Math.sqrt(u*u + v*v);
                         
-                        // Z-Achse bleibt strikt >= 0 durch Betrag
                         let wave = Math.sin(r * 2 - frame) * Math.cos(u * 0.8 + frame * 0.4);
                         let pz = Math.abs(wave) * vol * 1.2 + 0.05; 
                         
@@ -197,7 +196,6 @@ else:
                 x: initialData.x,
                 y: initialData.y,
                 z: initialData.z,
-                // Exakte Farbgebung (Violett bis Gelb)
                 colorscale: [
                     [0, '#4b0082'],
                     [0.3, '#9400d3'],
@@ -205,7 +203,6 @@ else:
                     [1, '#ffff00']
                 ],
                 showscale: false,
-                // Matte Textur (hohe Rauheit, minimaler Glanz)
                 lighting: { ambient: 0.6, diffuse: 0.8, specular: 0.05, roughness: 0.95 }
             }];
 
@@ -227,7 +224,6 @@ else:
             let plotDiv = document.getElementById('plotly-div');
             Plotly.newPlot(plotDiv, data, layout, {responsive: true, scrollZoom: true});
 
-            // Butterweiche Animation mit requestAnimationFrame
             let frame = 0;
             function animate() {
                 frame += 0.02;
@@ -245,5 +241,5 @@ else:
     </html>
     """.replace("MARKET_PLACEHOLDER", selected_market).replace("PRICE_PLACEHOLDER", f"{base_price:,.2f}").replace("VOL_PLACEHOLDER_NUM", str(volatility_factor)).replace("VOL_PLACEHOLDER", f"{volatility_factor:.2f}")
 
-    components.html(raw_surface_html, height=600)
-    st.caption(f"ℹ️ **Quanten-Membran (Matt & Butter-Smooth):** Matte Shader-Textur, exakte Farbpalette und flüssige Kamerasteuerung gekoppelt an **{selected_market}**.")
+    components.html(raw_surface_html, height=780)
+    st.caption(f"ℹ️ **Quanten-Membran:** Vergrößerte Ansicht mit mattem Shader und butterweicher Kamerasteuerung für **{selected_market}**.")
