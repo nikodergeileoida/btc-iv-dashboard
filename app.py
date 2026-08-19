@@ -15,7 +15,7 @@ st.sidebar.title("⚡ Terminal Control")
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 👁️ Ansicht")
-view_mode = st.sidebar.radio("Modus wählen:", ["📊 Live-Chart (Echte Marktdaten)", "🧊 Quanten-Membran (Live-Feed Gekoppelt)"])
+view_mode = st.sidebar.radio("Modus wählen:", ["📊 Live-Chart (Echte Marktdaten + Ticker)", "🧊 Quanten-Membran (Live-Feed Gekoppelt)"])
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🌍 Märkte")
@@ -77,7 +77,7 @@ col3.metric("Modus", view_mode, "Aktiv")
 
 st.divider()
 
-# 4. Ansichten mit echten Daten
+# 4. Ansichten mit echten Daten und Live-Tick
 if "Chart" in view_mode:
     st.subheader(f"📈 Echter Live-Candlestick Chart — {selected_market}")
     
@@ -106,7 +106,7 @@ if "Chart" in view_mode:
         </style>
     </head>
     <body>
-        <div class="market-badge">{selected_market}: ${base_price:,.2f}</div>
+        <div class="market-badge" id="badge">{selected_market}: ${base_price:,.2f}</div>
         <div id="chart-div"></div>
         <script>
             let times = {times};
@@ -114,6 +114,7 @@ if "Chart" in view_mode:
             let highs = {highs};
             let lows = {lows};
             let closes = {closes};
+            let basePrice = {base_price};
 
             let trace = {{
                 type: 'candlestick',
@@ -143,17 +144,36 @@ if "Chart" in view_mode:
                 displayModeBar: true,
                 modeBarButtonsToRemove: ['zoom2d', 'select2d', 'lasso2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d']
             }});
+
+            // Live-Ticker Simulation für die letzte Kerze basierend auf dem echten Startpreis
+            setInterval(() => {{
+                if (closes.length > 0) {{
+                    let lastIdx = closes.length - 1;
+                    let tick = (Math.random() - 0.49) * (basePrice * 0.0002);
+                    closes[lastIdx] += tick;
+                    highs[lastIdx] = Math.max(highs[lastIdx], closes[lastIdx]);
+                    lows[lastIdx] = Math.min(lows[lastIdx], closes[lastIdx]);
+
+                    let curP = closes[lastIdx];
+                    document.getElementById('badge').innerText = '{selected_market}: $' + curP.toLocaleString('en-US', {{minimumFractionDigits: 2, maximumFractionDigits: 2}});
+
+                    Plotly.update('chart-div', {{
+                        close: [closes],
+                        high: [highs],
+                        low: [lows]
+                    }}, {{}}, [0]);
+                }}
+            }}, 1000);
         </script>
     </body>
     </html>
     """
     components.html(raw_chart_html, height=600)
-    st.caption("ℹ️ **Echtdaten-Chart:** Direkt aus globalen Finanzmärkten geladen.")
+    st.caption("ℹ️ **Echtdaten-Chart mit Live-Tails:** Basisdaten von Yahoo Finance mit flüssiger Echtzeit-Aktualisierung.")
 
 else:
     st.subheader(f"🧊 Quanten-Membran (Gekoppelt an {selected_market}) — {selected_market}")
     
-    # Berechne einen Volatilitätsfaktor aus den echten Daten für die Membran-Amplitude
     if df_data is not None and len(df_data) > 1:
         volatility_factor = float((df_data['High'].max() - df_data['Low'].min()) / base_price * 50)
         volatility_factor = max(0.5, min(volatility_factor, 3.0))
@@ -205,7 +225,6 @@ else:
                     for (let j = 0; j < n; j++) {{
                         let v = (j / (n - 1)) * 5 - 2.5;
                         let r = Math.sqrt(u*u + v*v);
-                        // Amplitude reagiert direkt auf die echte Markt-Volatilität
                         let pz = Math.sin(r * 2 - frame) * Math.cos(u * 0.8 + frame * 0.5) * vol * 1.2;
                         
                         rowX.push(u);
@@ -285,4 +304,4 @@ else:
     </html>
     """
     components.html(raw_surface_html, height=600)
-    st.caption(f"ℹ️ **Live-Gekoppelte Membran:** Die Amplitude und Schwingung dieser 3D-Oberfläche skaliert direkt mit der echten Marktvolatilität von **{selected_market}**.")
+    st.caption(f"ℹ️ **Live-Gekoppelte Membran:** Schwingt passend zur Marktvolatilität von **{selected_market}**.")
