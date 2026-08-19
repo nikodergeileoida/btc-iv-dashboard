@@ -192,7 +192,7 @@ def get_tradingview_html(symbol_key):
     </html>
     """
 
-# 💡 Perfekt persistente Custom-Kerzen (Zoom-stabil, kein Flackern)
+# 💡 Perfekt persistente Custom-Kerzen
 def get_persistent_candles_html(df, title_text, key_suffix=""):
     if df is None or df.empty:
         return "<div>Keine Kerzen-Daten verfügbar.</div>"
@@ -212,19 +212,12 @@ def get_persistent_candles_html(df, title_text, key_suffix=""):
             html, body {{ margin: 0; padding: 0; width: 100%; height: 100%; background: #131722; overflow: hidden; }}
             #chart-container_{key_suffix} {{ width: 100%; height: 100%; position: relative; }}
             #chart-div_{key_suffix} {{ width: 100%; height: 550px; }}
-            :-webkit-full-screen #chart-div_{key_suffix} {{ height: 100vh !important; }}
-            :-moz-full-screen #chart-div_{key_suffix} {{ height: 100vh !important; }}
-            :fullscreen #chart-div_{key_suffix} {{ height: 100vh !important; }}
-            
-            .controls-overlay {{
-                position: absolute; top: 8px; left: 12px; z-index: 100;
-            }}
+            .controls-overlay {{ position: absolute; top: 8px; left: 12px; z-index: 100; }}
             .fs-btn {{
                 font-family: Arial, sans-serif; font-size: 11px; color: #fff;
                 background: rgba(30,30,30,0.85); padding: 5px 8px; border: 1px solid #555; border-radius: 4px;
-                cursor: pointer; transition: background 0.2s;
+                cursor: pointer;
             }}
-            .fs-btn:hover {{ background: rgba(50,50,50,1); border-color: #089981; }}
         </style>
     </head>
     <body>
@@ -237,15 +230,8 @@ def get_persistent_candles_html(df, title_text, key_suffix=""):
         <script>
             function toggleFullscreen() {{
                 var elem = document.getElementById('chart-container_{key_suffix}');
-                if (!document.fullscreenElement && !document.webkitFullscreenElement && !document.mozFullScreenElement) {{
-                    if (elem.requestFullscreen) {{ elem.requestFullscreen(); }}
-                    else if (elem.webkitRequestFullscreen) {{ elem.webkitRequestFullscreen(); }}
-                    else if (elem.mozRequestFullScreen) {{ elem.mozRequestFullScreen(); }}
-                }} else {{
-                    if (document.exitFullscreen) {{ document.exitFullscreen(); }}
-                    else if (document.webkitExitFullscreen) {{ document.webkitExitFullscreen(); }}
-                    else if (elem.mozCancelFullScreen) {{ elem.mozCancelFullScreen(); }}
-                }}
+                if (!document.fullscreenElement) {{ elem.requestFullscreen(); }}
+                else {{ document.exitFullscreen(); }}
             }}
 
             const trace = {{
@@ -261,59 +247,22 @@ def get_persistent_candles_html(df, title_text, key_suffix=""):
 
             const layout = {{
                 template: 'plotly_dark',
-                paper_bgcolor: '#131722',
-                plot_bgcolor: '#131722',
+                paper_bgcolor: '#131722', plot_bgcolor: '#131722',
                 margin: {{ l: 10, r: 50, t: 30, b: 10 }},
-                xaxis: {{
-                    rangeslider: {{ visible: false }},
-                    gridcolor: '#1f293d',
-                    showspikes: true, spikecolor: '#787b86', spikethickness: 1, spikedash: 'dot'
-                }},
-                yaxis: {{
-                    side: 'right',
-                    gridcolor: '#1f293d',
-                    showspikes: true, spikecolor: '#787b86', spikethickness: 1, spikedash: 'dot'
-                }},
+                xaxis: {{ rangeslider: {{ visible: false }}, gridcolor: '#1f293d' }},
+                yaxis: {{ side: 'right', gridcolor: '#1f293d' }},
                 title: {{ text: {json.dumps(title_text)}, font: {{ size: 14, color: '#d1d4dc' }} }},
-                dragmode: 'pan',
-                hovermode: 'x unified'
-            }};
-
-            const config = {{
-                scrollZoom: true,
-                displayModeBar: true,
-                modeBarButtonsToRemove: ['lasso2d', 'select2d'],
-                responsive: true
+                dragmode: 'pan'
             }};
 
             const div = document.getElementById('chart-div_{key_suffix}');
-            let savedZoom = sessionStorage.getItem('zoom_{key_suffix}');
-            let currentZoom = savedZoom ? JSON.parse(savedZoom) : null;
-
-            Plotly.newPlot(div, [trace], layout, config).then(function() {{
-                if (currentZoom && currentZoom.xaxis) {{
-                    Plotly.relayout(div, {{
-                        'xaxis.range': currentZoom.xaxis,
-                        'yaxis.range': currentZoom.yaxis
-                    }});
-                }}
-                
-                div.on('plotly_relayout', function(eventData) {{
-                    if (div.layout && div.layout.xaxis && div.layout.xaxis.range) {{
-                        let zData = {{
-                            xaxis: div.layout.xaxis.range,
-                            yaxis: div.layout.yaxis.range
-                        }};
-                        sessionStorage.setItem('zoom_{key_suffix}', JSON.stringify(zData));
-                    }}
-                }});
-            }});
+            Plotly.newPlot(div, [trace], layout, {{responsive: true, scrollZoom: true}});
         </script>
     </body>
     </html>
     """
 
-# 💡 3D Quanten-Membran mit intelligenter Interaktions-Erkennung (Kamera drehbar!)
+# 💡 3D Quanten-Membran (Blackscreen-Fix mit sicherem WebGL-Kontext)
 def get_persistent_quantum_html(market_name, vol_num, key_suffix=""):
     return f"""
     <!DOCTYPE html>
@@ -324,10 +273,6 @@ def get_persistent_quantum_html(market_name, vol_num, key_suffix=""):
             html, body {{ margin: 0; padding: 0; width: 100%; height: 100%; background: #000000; overflow: hidden; }}
             #chart-container_{key_suffix} {{ width: 100%; height: 100%; position: relative; }}
             #plotly-div_{key_suffix} {{ width: 100%; height: 550px; }}
-            :-webkit-full-screen #plotly-div_{key_suffix} {{ height: 100vh !important; }}
-            :-moz-full-screen #plotly-div_{key_suffix} {{ height: 100vh !important; }}
-            :fullscreen #plotly-div_{key_suffix} {{ height: 100vh !important; }}
-
             .controls-overlay {{
                 position: absolute; top: 8px; left: 12px; z-index: 100;
                 display: flex; gap: 8px; align-items: center;
@@ -339,15 +284,14 @@ def get_persistent_quantum_html(market_name, vol_num, key_suffix=""):
             .fs-btn {{
                 font-family: Arial, sans-serif; font-size: 11px; color: #fff;
                 background: rgba(30,30,30,0.9); padding: 5px 8px; border: 1px solid #555; border-radius: 4px;
-                cursor: pointer; transition: background 0.2s;
+                cursor: pointer;
             }}
-            .fs-btn:hover {{ background: rgba(50,50,50,1); border-color: orange; }}
         </style>
     </head>
     <body>
         <div id="chart-container_{key_suffix}">
             <div class="controls-overlay">
-                <div class="market-badge">{market_name} // Quanten-Membran</div>
+                <div class="market-badge">{market_name} // 3D</div>
                 <button class="fs-btn" onclick="toggleFullscreen()">⛶ Fullscreen</button>
             </div>
             <div id="plotly-div_{key_suffix}"></div>
@@ -355,18 +299,11 @@ def get_persistent_quantum_html(market_name, vol_num, key_suffix=""):
         <script>
             function toggleFullscreen() {{
                 var elem = document.getElementById('chart-container_{key_suffix}');
-                if (!document.fullscreenElement && !document.webkitFullscreenElement && !document.mozFullScreenElement) {{
-                    if (elem.requestFullscreen) {{ elem.requestFullscreen(); }}
-                    else if (elem.webkitRequestFullscreen) {{ elem.webkitRequestFullscreen(); }}
-                    else if (elem.mozRequestFullScreen) {{ elem.mozRequestFullScreen(); }}
-                }} else {{
-                    if (document.exitFullscreen) {{ document.exitFullscreen(); }}
-                    else if (document.webkitExitFullscreen) {{ document.webkitExitFullscreen(); }}
-                    else if (elem.mozCancelFullScreen) {{ elem.mozCancelFullScreen(); }}
-                }}
+                if (!document.fullscreenElement) {{ elem.requestFullscreen(); }}
+                else {{ document.exitFullscreen(); }}
             }}
 
-            const n = 50;
+            const n = 40;
             const vol = {vol_num};
 
             function getSurface(frame) {{
@@ -384,62 +321,63 @@ def get_persistent_quantum_html(market_name, vol_num, key_suffix=""):
                     x.push(rowX); y.push(rowY); z.push(rowZ);
                 }}
                 return {{ x: x, y: y, z: z }};
-            }}
+            }
 
             let initialData = getSurface(0);
-            const data = [{{
+            const data = [{
                 type: 'surface',
                 x: initialData.x, y: initialData.y, z: initialData.z,
                 colorscale: [[0, '#4b0082'], [0.3, '#9400d3'], [0.6, '#ff8c00'], [1, '#ffff00']],
                 showscale: false,
-                lighting: {{ ambient: 0.6, diffuse: 0.8, specular: 0.05, roughness: 0.95 }}
-            }}];
+                lighting: { ambient: 0.6, diffuse: 0.8, specular: 0.05, roughness: 0.95 }
+            }];
 
             let savedCam = sessionStorage.getItem('cam_{key_suffix}');
             let initialCamera = savedCam ? JSON.parse(savedCam) : {{ eye: {{x: 1.6, y: -1.6, z: 1.2}} }};
 
-            const layout = {{
+            const layout = {
                 template: 'plotly_dark',
                 paper_bgcolor: '#000000', plot_bgcolor: '#000000',
-                autosize: true, margin: {{l: 0, r: 0, b: 0, t: 0}},
-                scene: {{
+                autosize: true, margin: {l: 0, r: 0, b: 0, t: 0},
+                scene: {
                     bgcolor: '#000000',
-                    xaxis: {{showgrid: true, zeroline: true, title: 'Strike', gridcolor: '#333', zerolinecolor: '#555'}},
-                    yaxis: {{showgrid: true, zeroline: true, title: 'Time', gridcolor: '#333', zerolinecolor: '#555'}},
-                    zaxis: {{showgrid: true, zeroline: true, title: 'Volatility', range: [0, 3.5], gridcolor: '#333', zerolinecolor: '#555'}},
+                    xaxis: {showgrid: true, zeroline: true, title: 'Strike', gridcolor: '#333'},
+                    yaxis: {showgrid: true, zeroline: true, title: 'Time', gridcolor: '#333'},
+                    zaxis: {showgrid: true, zeroline: true, title: 'Volatility', range: [0, 3.5], gridcolor: '#333'},
                     camera: initialCamera
-                }}
-            }};
+                }
+            };
 
             let plotDiv = document.getElementById('plotly-div_{key_suffix}');
-            Plotly.newPlot(plotDiv, data, layout, {{responsive: true, scrollZoom: true}});
+            
+            // Verzögerter Start, damit WebGL den Kontext sicher aufbaut (verhindert Blackscreen)
+            setTimeout(function() {{
+                Plotly.newPlot(plotDiv, data, layout, {{responsive: true, scrollZoom: true}}).then(function() {{
+                    
+                    plotDiv.on('plotly_relayout', function(eventData) {{
+                        if (plotDiv.layout && plotDiv.layout.scene && plotDiv.layout.scene.camera) {{
+                            sessionStorage.setItem('cam_{key_suffix}', JSON.stringify(plotDiv.layout.scene.camera));
+                        }}
+                    }});
 
-            # Kamera-Änderungen in SessionStorage sichern
-            plotDiv.on('plotly_relayout', function(eventData) {{
-                if (eventData && eventData['scene.camera']) {{
-                    sessionStorage.setItem('cam_{key_suffix}', JSON.stringify(eventData['scene.camera']));
-                }} else if (plotDiv.layout && plotDiv.layout.scene && plotDiv.layout.scene.camera) {{
-                    sessionStorage.setItem('cam_{key_suffix}', JSON.stringify(plotDiv.layout.scene.camera));
-                }}
-            }});
+                    let isUserInteracting = false;
+                    plotDiv.addEventListener('mousedown', () => isUserInteracting = true);
+                    window.addEventListener('mouseup', () => isUserInteracting = false);
+                    plotDiv.addEventListener('touchstart', () => isUserInteracting = true);
+                    window.addEventListener('touchend', () => isUserInteracting = false);
 
-            # Interaktions-Erkennung: Animation pausieren, wenn der Nutzer die Kamera dreht/klickt
-            let isUserInteracting = false;
-            plotDiv.addEventListener('mousedown', function() {{ isUserInteracting = true; }});
-            window.addEventListener('mouseup', function() {{ isUserInteracting = false; }});
-            plotDiv.addEventListener('touchstart', function() {{ isUserInteracting = true; }});
-            window.addEventListener('touchend', function() {{ isUserInteracting = false; }});
-
-            let frame = 0;
-            function animate() {{
-                if (!isUserInteracting) {{
-                    frame += 0.02;
-                    let currentData = getSurface(frame);
-                    Plotly.restyle(plotDiv, {{ z: [currentData.z] }}, [0]);
-                }}
-                requestAnimationFrame(animate);
-            }}
-            requestAnimationFrame(animate);
+                    let frame = 0;
+                    function animate() {{
+                        if (!isUserInteracting) {{
+                            frame += 0.02;
+                            let currentData = getSurface(frame);
+                            Plotly.restyle(plotDiv, {{ z: [currentData.z] }}, [0]);
+                        }}
+                        requestAnimationFrame(animate);
+                    }}
+                    requestAnimationFrame(animate);
+                }});
+            }}, 200);
         </script>
     </body>
     </html>
