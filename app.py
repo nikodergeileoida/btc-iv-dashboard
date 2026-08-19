@@ -15,7 +15,7 @@ st.sidebar.title("⚡ Terminal Control")
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 👁️ Ansicht")
-view_mode = st.sidebar.radio("Modus wählen:", ["📊 Live-Chart (Echte Marktdaten + Ticker)", "🧊 Torus-Knoten (Komplexes 3D-Mesh)"])
+view_mode = st.sidebar.radio("Modus wählen:", ["📊 Live-Chart (Echte Marktdaten + Ticker)", "🧊 Riemannsches Raumgitter (Groß & Komplexe 3D-Fläche)"])
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🌍 Märkte")
@@ -171,11 +171,11 @@ if "Chart" in view_mode:
     st.caption("ℹ️ **Echtdaten-Chart mit Live-Tails:** Basisdaten von Yahoo Finance mit flüssiger Echtzeit-Aktualisierung.")
 
 else:
-    st.subheader(f"🧊 Torus-Knoten Mesh (Gekoppelt an {selected_market}) — {selected_market}")
+    st.subheader(f"🧊 Riemannsches Raumgitter (Gekoppelt an {selected_market}) — {selected_market}")
     
     if df_data is not None and len(df_data) > 1:
         volatility_factor = float((df_data['High'].max() - df_data['Low'].min()) / base_price * 50)
-        volatility_factor = max(0.5, min(volatility_factor, 3.0))
+        volatility_factor = max(0.5, min(volatility_factor, 3.5))
     else:
         volatility_factor = 1.0
 
@@ -206,34 +206,29 @@ else:
         </style>
     </head>
     <body>
-        <div class="market-badge">{selected_market}: ${base_price:,.2f} (Live Vol: {volatility_factor:.2f})</div>
+        <div class="market-badge">{selected_market}: ${base_price:,.2f} (Grosser Vol-Index: {volatility_factor:.2f})</div>
         <div class="zoom-controls">
             <button class="zoom-btn" onclick="zoomIn()" title="Hineinzoomen">+</button>
             <button class="zoom-btn" onclick="zoomOut()" title="Herauszoomen">-</button>
         </div>
         <div id="plotly-div"></div>
         <script>
-            const m = 50;
-            const p = 40;
+            const res = 70; // Höhere Auflösung für ein extrem detailreiches, großes Netz
             const vol = {volatility_factor};
 
-            function getTorusKnot(frame) {{
+            function getRiemannGrid(frame) {{
                 let x = [], y = [], z = [];
-                for (let i = 0; i < m; i++) {{
+                for (let i = 0; i < res; i++) {{
                     let rowX = [], rowY = [], rowZ = [];
-                    let u = (i / (m - 1)) * Math.PI * 2;
-                    for (let j = 0; j < p; j++) {{
-                        let v = (j / (p - 1)) * Math.PI * 2;
+                    let u = (i / (res - 1)) * Math.PI * 4 - Math.PI * 2;
+                    for (let j = 0; j < res; j++) {{
+                        let v = (j / (res - 1)) * Math.PI * 2;
                         
-                        // Torus-Knoten mathematische Parametrisierung mit Live-Volatilitäts-Pulsieren
-                        let r = 1.5 + 0.4 * Math.cos(3 * u + frame * 0.5) * vol;
-                        let px = r * Math.cos(2 * u);
-                        let py = r * Math.sin(2 * u);
-                        let pz = 0.5 * Math.sin(3 * u) + 0.3 * Math.sin(v) * vol;
-                        
-                        // Zusätzliche Verdrehung für komplexe Oberflächenstruktur
-                        px += 0.2 * Math.cos(v) * Math.cos(u);
-                        py += 0.2 * Math.cos(v) * Math.sin(u);
+                        // Komplexe, weitläufige Formel (Erweiterte Enneper- / Riemann-Oberfläche mit dynamischem Wellengang)
+                        let r = Math.sin(u * 1.5) * Math.cos(v * 1.5) * 2.0;
+                        let px = u * 0.8 + Math.sin(v + frame * 0.3) * vol * 0.5;
+                        let py = v * 0.8 + Math.cos(u + frame * 0.3) * vol * 0.5;
+                        let pz = Math.sin(u * v - frame * 0.5) * (1.5 + 0.5 * Math.cos(u)) * vol;
 
                         rowX.push(px);
                         rowY.push(py);
@@ -246,16 +241,16 @@ else:
                 return {{ x: x, y: y, z: z }};
             }}
 
-            let initialData = getTorusKnot(0);
+            let initialData = getRiemannGrid(0);
 
             const data = [{{
                 type: 'surface',
                 x: initialData.x,
                 y: initialData.y,
                 z: initialData.z,
-                colorscale: 'Jet',
+                colorscale: 'YlGnBu',
                 showscale: false,
-                lighting: {{ ambient: 0.3, diffuse: 0.9, specular: 0.8, roughness: 0.2 }}
+                lighting: {{ ambient: 0.2, diffuse: 0.9, specular: 0.9, roughness: 0.1 }}
             }}];
 
             const layout = {{
@@ -268,8 +263,8 @@ else:
                     bgcolor: '#000000',
                     xaxis: {{showgrid: false, zeroline: false, showticklabels: false, title: ''}},
                     yaxis: {{showgrid: false, zeroline: false, showticklabels: false, title: ''}},
-                    zaxis: {{showgrid: false, zeroline: false, showticklabels: false, title: '', range: [-3, 3]}},
-                    camera: {{ eye: {{x: 1.8, y: -1.8, z: 1.4}} }}
+                    zaxis: {{showgrid: false, zeroline: false, showticklabels: false, title: '', range: [-4, 4]}},
+                    camera: {{ eye: {{x: 2.2, y: -2.2, z: 1.6}} }}
                 }}
             }};
 
@@ -295,8 +290,8 @@ else:
             let frame = 0;
             function runAnimation() {{
                 if (!isInteracting) {{
-                    frame += 0.04;
-                    let currentData = getTorusKnot(frame);
+                    frame += 0.03;
+                    let currentData = getRiemannGrid(frame);
                     Plotly.restyle(plotDiv, {{
                         x: [currentData.x],
                         y: [currentData.y],
@@ -312,4 +307,4 @@ else:
     </html>
     """
     components.html(raw_surface_html, height=600)
-    st.caption(f"ℹ️ **Torus-Knoten Mesh:** Eine komplexe, ineinander verschlungene 3D-Fläche, deren Dynamik direkt an die Live-Volatilität von **{selected_market}** gekoppelt ist.")
+    st.caption(f"ℹ️ **Riemannsches Raumgitter:** Eine großflächige, extrem komplexe und dichte mathematische Struktur, gekoppelt an die Volatilität von **{selected_market}**.")
