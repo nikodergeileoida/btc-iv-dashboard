@@ -5,6 +5,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime
 import time
+import requests
 
 # 1. Konfiguration
 st.set_page_config(
@@ -46,9 +47,9 @@ asset_class = st.sidebar.selectbox(
     ["Kryptowährungen", "US-Märkte", "Deutsche Märkte (Xetra)", "Forex & Rohstoffe"]
 )
 
-# Ticker-Mapping für yfinance & TradingView
+# Ticker-Mapping
 if asset_class == "Kryptowährungen":
-    market_map = {"BTCUSDT": "BTC-USD", "ETHUSDT": "ETH-USD", "SOLUSDT": "SOL-USD", "BNBUSDT": "BNB-USD", "XRPUSDT": "XRP-USD"}
+    market_map = {"BTCUSDT": "BTCUSDT", "ETHUSDT": "ETHUSDT", "SOLUSDT": "SOLUSDT", "BNBUSDT": "BNBUSDT", "XRPUSDT": "XRPUSDT"}
 elif asset_class == "US-Märkte":
     market_map = {"S&P 500 (SPY)": "SPY", "Nasdaq (QQQ)": "QQQ", "Apple (AAPL)": "AAPL", "Tesla (TSLA)": "TSLA", "NVIDIA (NVDA)": "NVIDIA"}
 elif asset_class == "Deutsche Märkte (Xetra)":
@@ -59,20 +60,41 @@ else:
 selected_market = st.sidebar.selectbox("🎯 Spezieller Markt:", list(market_map.keys()))
 ticker_symbol = market_map[selected_market]
 
-# Echte Live-Daten laden (auto_adjust=False für ungefilterte, originale OHLC-Rohdaten wie an der Börse)
+# 3. Hochgenaue Datenbeschaffung (Binance für Krypto = 100% akkurat wie TV, ansonsten yfinance)
 @st.cache_data(ttl=5)
-def fetch_market_data(symbol):
+def fetch_accurate_market_data(asset_cls, symbol):
     try:
+        # Wenn Krypto, nutze direkt die Binance API für identische Kerzen wie auf TradingView
+        if asset_cls == "Kryptowährungen":
+            url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=1m&limit=150"
+            response = requests.get(url, timeout=3)
+            data = response.json()
+            if isinstance(data, list) and len(data) > 0:
+                df = pd.DataFrame(data, columns=[
+                    'Open_time', 'Open', 'High', 'Low', 'Close', 'Volume',
+                    'Close_time', 'Quote_asset_volume', 'Number_of_trades',
+                    'Taker_buy_base_asset_volume', 'Taker_buy_quote_asset_volume', 'Ignore'
+                ])
+                df['Open'] = df['Open'].astype(float)
+                df['High'] = df['High'].astype(float)
+                df['Low'] = df['Low'].astype(float)
+                df['Close'] = df['Close'].astype(float)
+                df['Open_time'] = pd.to_datetime(df['Open_time'], unit='ms')
+                df.set_index('Open_time', inplace=True)
+                current_price = df['Close'].iloc[-1]
+                return df[['Open', 'High', 'Low', 'Close']], current_price
+        
+        # Fallback für Aktien, Indizes und Forex (Yahoo Finance mit auto_adjust=False)
         t = yf.Ticker(symbol)
         df = t.history(period="1d", interval="1m", auto_adjust=False)
         if df.empty:
             df = t.history(period="5d", interval="15m", auto_adjust=False)
         current_price = t.history(period="1d", auto_adjust=False)['Close'].iloc[-1]
-        return df, current_price
+        return df[['Open', 'High', 'Low', 'Close']], current_price
     except Exception:
         return None, 100.0
 
-df_raw, base_price = fetch_market_data(ticker_symbol)
+df_raw, base_price = fetch_accurate_market_data(asset_class, ticker_symbol)
 
 # Eigene Kerzen verarbeiten / manipulieren
 if df_raw is not None and not df_raw.empty:
@@ -106,7 +128,7 @@ def get_market_status():
 
 status_text, status_flag = get_market_status()
 
-# 3. Haupt-Layout
+# Haupt-Layout
 st.title(f"Terminal // {selected_market} ({ticker_symbol})")
 st.markdown(f"Kategorie: **{asset_class}** | Status: **{status_text}**")
 
@@ -120,8 +142,8 @@ st.divider()
 # Hilfsfunktion für TradingView Original-Widget
 def get_tradingview_html(symbol):
     tv_symbol_map = {
-        "BTC-USD": "BINANCE:BTCUSDT", "ETH-USD": "BINANCE:ETHUSDT", "SOL-USD": "BINANCE:SOLUSDT",
-        "BNB-USD": "BINANCE:BNBUSDT", "XRP-USD": "BINANCE:XRPUSDT", "SPY": "AMEX:SPY",
+        "BTCUSDT": "BINANCE:BTCUSDT", "ETHUSDT": "BINANCE:ETHUSDT", "SOLUSDT": "BINANCE:SOLUSDT",
+        "BNBUSDT": "BINANCE:BNBUSDT", "XRPUSDT": "BINANCE:XRPUSDT", "SPY": "AMEX:SPY",
         "QQQ": "NASDAQ:QQQ", "AAPL": "NASDAQ:AAPL", "TSLA": "NASDAQ:TSLA", "NVIDIA": "NASDAQ:NVIDIA",
         "^GDAXI": "XETR:DAX", "SAP.DE": "XETR:SAP", "SIE.DE": "XETR:SIE", "ALV.DE": "XETR:ALV",
         "GC=F": "COMEX:GC1!", "SI=F": "NYMEX:SI1!", "CL=F": "NYMEX:CL1!", "EURUSD=X": "FX_IDC:EURUSD"
@@ -158,15 +180,15 @@ def render_custom_candles(df, title_text):
         high=df['High'],
         low=df['Low'],
         close=df['Close'],
-        increasing_line_color='#089981',  # TradingView Grün
-        decreasing_line_color='#F23645',  # TradingView Rot
+        increasing_line_color='#089981',  
+        decreasing_line_color='#F23645',  
         increasing_fillcolor='#089981',
         decreasing_fillcolor='#F23645'
     )])
     
     fig.update_layout(
         template='plotly_dark',
-        paper_bgcolor='#131722',  # Exakter TradingView Hintergrund-Ton
+        paper_bgcolor='#131722',  
         plot_bgcolor='#131722',
         margin=dict(l=10, r=50, t=30, b=10),
         xaxis_rangeslider_visible=False,
@@ -175,7 +197,6 @@ def render_custom_candles(df, title_text):
         hovermode='x unified'
     )
     
-    # Exaktes Fadenkreuz und Achsenplatzierung wie bei TradingView
     fig.update_xaxes(gridcolor='#1f293d', showspikes=True, spikecolor='#787b86', spikethickness=1, spikedash='dot')
     fig.update_yaxes(gridcolor='#1f293d', side='right', showspikes=True, spikecolor='#787b86', spikethickness=1, spikedash='dot')
     
@@ -297,7 +318,7 @@ if df_raw is not None and len(df_raw) > 1:
 else:
     volatility_factor = 1.0
 
-# 4. Ansichten Rendering
+# Ansichten Rendering
 if "TradingView Live-Terminal" in view_mode:
     st.subheader(f"📈 TradingView Live-Terminal — {selected_market}")
     components.html(get_tradingview_html(ticker_symbol), height=620, scrolling=False)
@@ -311,7 +332,7 @@ elif "Quanten-Membran" in view_mode:
     html_content = get_quantum_html(selected_market, f"{base_price:,.2f}", volatility_factor, f"{volatility_factor:.2f}")
     components.html(html_content, height=620)
 
-else:  # Split-View (Beide nebeneinander: Eigene Kerzen + 3D Membran)
+else:  
     st.subheader(f"⚡ Dual Screen: Eigene Kerzen & Quanten-Membran — {selected_market}")
     col_a, col_b = st.columns(2)
     
@@ -324,7 +345,7 @@ else:  # Split-View (Beide nebeneinander: Eigene Kerzen + 3D Membran)
         html_content = get_quantum_html(selected_market, f"{base_price:,.2f}", volatility_factor, f"{volatility_factor:.2f}")
         components.html(html_content, height=580)
 
-# Automatischer Live-Feed Loop (10 Sekunden Intervall)
+# Live-Feed Loop
 if live_feed:
     time.sleep(10)
     st.rerun()
