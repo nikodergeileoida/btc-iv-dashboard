@@ -15,7 +15,7 @@ st.sidebar.title("⚡ Terminal Control")
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 👁️ Ansicht")
-view_mode = st.sidebar.radio("Modus wählen:", ["📊 Live-Chart (Echte Marktdaten + Ticker)", "🧊 Quanten-Membran (Positive Volatilität ≥ 0)"])
+view_mode = st.sidebar.radio("Modus wählen:", ["📊 Live-Chart (Echte Marktdaten + Ticker)", "🧊 Quanten-Membran (Matt & Butter-Smooth)"])
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🌍 Märkte")
@@ -171,7 +171,7 @@ if "Chart" in view_mode:
     st.caption("ℹ️ **Echtdaten-Chart mit Live-Tails:** Basisdaten von Yahoo Finance mit flüssiger Echtzeit-Aktualisierung.")
 
 else:
-    st.subheader(f"🧊 Quanten-Membran (Gekoppelt an {selected_market})")
+    st.subheader(f"🧊 Quanten-Membran (Matt & Butter-Smooth) — {selected_market}")
     
     if df_data is not None and len(df_data) > 1:
         try:
@@ -201,7 +201,7 @@ else:
         <div class="market-badge">MARKET_PLACEHOLDER: $PRICE_PLACEHOLDER (Vol: VOL_PLACEHOLDER)</div>
         <div id="plotly-div"></div>
         <script>
-            const n = 45;
+            const n = 50;
             const vol = VOL_PLACEHOLDER_NUM;
 
             function getSurface(frame) {
@@ -213,8 +213,8 @@ else:
                         let v = (j / (n - 1)) * 5 - 2.5;
                         let r = Math.sqrt(u*u + v*v);
                         
-                        // Mathematischer Trick: Absoluter Wert der Welle + Offset, damit Z strikt >= 0 bleibt
-                        let wave = Math.sin(r * 2 - frame) * Math.cos(u * 0.8 + frame * 0.5);
+                        // Z-Achse bleibt strikt >= 0 durch Betrag
+                        let wave = Math.sin(r * 2 - frame) * Math.cos(u * 0.8 + frame * 0.4);
                         let pz = Math.abs(wave) * vol * 1.2 + 0.05; 
                         
                         rowX.push(u);
@@ -235,9 +235,16 @@ else:
                 x: initialData.x,
                 y: initialData.y,
                 z: initialData.z,
-                colorscale: 'Electric',
+                // Exakte Farbgebung wie im Screenshot (Violett unten, Orange/Gelb oben)
+                colorscale: [
+                    [0, '#4b0082'],
+                    [0.3, '#9400d3'],
+                    [0.6, '#ff8c00'],
+                    [1, '#ffff00']
+                ],
                 showscale: false,
-                lighting: { ambient: 0.4, diffuse: 0.8, specular: 0.5, roughness: 0.3 }
+                // Matte Textur (hohe Rauheit, fast kein Glanz)
+                lighting: { ambient: 0.6, diffuse: 0.8, specular: 0.05, roughness: 0.95 }
             }];
 
             const layout = {
@@ -248,32 +255,33 @@ else:
                 margin: {l: 0, r: 0, b: 0, t: 0},
                 scene: {
                     bgcolor: '#000000',
-                    xaxis: {showgrid: true, zeroline: true, title: 'Strike Price'},
-                    yaxis: {showgrid: true, zeroline: true, title: 'Time'},
-                    zaxis: {showgrid: true, zeroline: true, title: 'Volatility', range: [0, 3.5]},
-                    camera: { eye: {x: 1.5, y: -1.5, z: 1.2} }
+                    xaxis: {showgrid: true, zeroline: true, title: 'Strike Price', gridcolor: '#333', zerolinecolor: '#555'},
+                    yaxis: {showgrid: true, zeroline: true, title: 'Time', gridcolor: '#333', zerolinecolor: '#555'},
+                    zaxis: {showgrid: true, zeroline: true, title: 'Volatility', range: [0, 3.5], gridcolor: '#333', zerolinecolor: '#555'},
+                    camera: { eye: {x: 1.6, y: -1.6, z: 1.2} }
                 }
             };
 
             let plotDiv = document.getElementById('plotly-div');
             Plotly.newPlot(plotDiv, data, layout, {responsive: true, scrollZoom: true});
 
+            // Butterweiche Animation über requestAnimationFrame statt setInterval
             let frame = 0;
-            function runAnimation() {
-                frame += 0.05;
+            function animate() {
+                frame += 0.02; // Kleinere Schritte für maximale Fluidität
                 let currentData = getSurface(frame);
                 Plotly.restyle(plotDiv, {
                     x: [currentData.x],
                     y: [currentData.y],
                     z: [currentData.z]
                 }, [0]);
-                setTimeout(runAnimation, 16);
+                requestAnimationFrame(animate);
             }
-            setTimeout(runAnimation, 16);
+            requestAnimationFrame(animate);
         </script>
     </body>
     </html>
     """.replace("MARKET_PLACEHOLDER", selected_market).replace("PRICE_PLACEHOLDER", f"{base_price:,.2f}").replace("VOL_PLACEHOLDER_NUM", str(volatility_factor)).replace("VOL_PLACEHOLDER", f"{volatility_factor:.2f}")
 
     components.html(raw_surface_html, height=600)
-    st.caption(f"ℹ️ **Quanten-Membran (Positive Volatilität):** Die Z-Achse beginnt fest bei 0 und schwingt ausschließlich im positiven Bereich, gekoppelt an **{selected_market}**.")
+    st.caption(f"ℹ️ **Quanten-Membran (Matt & Butter-Smooth):** Matte Shader-Textur, exakte Farbpalette und flüssige 60+ FPS Kamerasteuerung gekoppelt an **{selected_market}**.")
