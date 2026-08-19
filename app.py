@@ -1,5 +1,6 @@
 import streamlit as st
 import streamlit.components.v1 as components
+import plotly.graph_objects as go
 import yfinance as yf
 import pandas as pd
 import json
@@ -192,136 +193,46 @@ def get_tradingview_html(symbol_key):
     </html>
     """
 
-# Funktion für persistente Custom-Kerzen mit echtem Fullscreen
-def render_persistent_custom_candles(df, title_text):
+# Flimmerfreie native Custom-Kerzen via st.plotly_chart
+def render_native_custom_candles(df, title_text, chart_key="candles"):
     if df is None or df.empty:
         st.warning("Keine Kerzen-Daten verfügbar.")
         return
     
-    x_data = [d.strftime('%Y-%m-%d %H:%M:%S') for d in df.index]
-    open_data = df['Open'].tolist()
-    high_data = df['High'].tolist()
-    low_data = df['Low'].tolist()
-    close_data = df['Close'].tolist()
+    fig = go.Figure(data=[go.Candlestick(
+        x=df.index,
+        open=df['Open'],
+        high=df['High'],
+        low=df['Low'],
+        close=df['Close'],
+        increasing_line_color='#089981', increasing_fillcolor='#089981',
+        decreasing_line_color='#F23645', decreasing_fillcolor='#F23645'
+    )])
 
-    html_code = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
-        <style>
-            html, body {{ margin: 0; padding: 0; width: 100%; height: 100%; background: #131722; overflow: hidden; }}
-            #chart-container {{ width: 100%; height: 100%; position: relative; }}
-            #chart-div {{ width: 100%; height: 550px; }}
-            /* Im echten Vollbildmodus dehnt sich das Chart auf 100% aus */
-            :-webkit-full-screen #chart-div {{ height: 100vh !important; }}
-            :-moz-full-screen #chart-div {{ height: 100vh !important; }}
-            :fullscreen #chart-div {{ height: 100vh !important; }}
-            
-            .controls-overlay {{
-                position: absolute; top: 8px; left: 12px; z-index: 100;
-            }}
-            .fs-btn {{
-                font-family: Arial, sans-serif; font-size: 11px; color: #fff;
-                background: rgba(30,30,30,0.85); padding: 5px 8px; border: 1px solid #555; border-radius: 4px;
-                cursor: pointer; transition: background 0.2s;
-            }}
-            .fs-btn:hover {{ background: rgba(50,50,50,1); border-color: #089981; }}
-        </style>
-    </head>
-    <body>
-        <div id="chart-container">
-            <div class="controls-overlay">
-                <button class="fs-btn" onclick="toggleFullscreen()">⛶ Fullscreen</button>
-            </div>
-            <div id="chart-div"></div>
-        </div>
-        <script>
-            function toggleFullscreen() {{
-                var elem = document.getElementById('chart-container');
-                if (!document.fullscreenElement && !document.webkitFullscreenElement && !document.mozFullScreenElement) {{
-                    if (elem.requestFullscreen) {{
-                        elem.requestFullscreen();
-                    }} else if (elem.webkitRequestFullscreen) {{
-                        elem.webkitRequestFullscreen();
-                    }} else if (elem.mozRequestFullScreen) {{
-                        elem.mozRequestFullScreen();
-                    }}
-                }} else {{
-                    if (document.exitFullscreen) {{
-                        document.exitFullscreen();
-                    }} else if (document.webkitExitFullscreen) {{
-                        document.webkitExitFullscreen();
-                    }} else if (document.mozCancelFullScreen) {{
-                        document.mozCancelFullScreen();
-                    }}
-                }}
-            }}
+    fig.update_layout(
+        template='plotly_dark',
+        paper_bgcolor='#131722',
+        plot_bgcolor='#131722',
+        margin=dict(l=10, r=50, t=30, b=10),
+        xaxis=dict(
+            rangeslider=dict(visible=False),
+            gridcolor='#1f293d',
+            showspikes=True, spikecolor='#787b86', spikethickness=1, spikedash='dot'
+        ),
+        yaxis=dict(
+            side='right',
+            gridcolor='#1f293d',
+            showspikes=True, spikecolor='#787b86', spikethickness=1, spikedash='dot'
+        ),
+        title=dict(text=title_text, font=dict(size=14, color='#d1d4dc')),
+        dragmode='pan',
+        hovermode='x unified'
+    )
 
-            const trace = {{
-                x: {json.dumps(x_data)},
-                open: {json.dumps(open_data)},
-                high: {json.dumps(high_data)},
-                low: {json.dumps(low_data)},
-                close: {json.dumps(close_data)},
-                type: 'candlestick',
-                increasing: {{ line: {{ color: '#089981' }}, fillcolor: '#089981' }},
-                decreasing: {{ line: {{ color: '#F23645' }}, fillcolor: '#F23645' }}
-            }};
+    st.plotly_chart(fig, use_container_width=True, key=chart_key)
 
-            const layout = {{
-                template: 'plotly_dark',
-                paper_bgcolor: '#131722',
-                plot_bgcolor: '#131722',
-                margin: {{ l: 10, r: 50, t: 30, b: 10 }},
-                xaxis: {{
-                    rangeslider: {{ visible: false }},
-                    gridcolor: '#1f293d',
-                    showspikes: true, spikecolor: '#787b86', spikethickness: 1, spikedash: 'dot'
-                }},
-                yaxis: {{
-                    side: 'right',
-                    gridcolor: '#1f293d',
-                    showspikes: true, spikecolor: '#787b86', spikethickness: 1, spikedash: 'dot'
-                }},
-                title: {{ text: {json.dumps(title_text)}, font: {{ size: 14, color: '#d1d4dc' }} }},
-                dragmode: 'pan',
-                hovermode: 'x unified'
-            }};
-
-            const config = {{
-                scrollZoom: true,
-                displayModeBar: true,
-                modeBarButtonsToRemove: ['lasso2d', 'select2d'],
-                responsive: true
-            }};
-
-            const div = document.getElementById('chart-div');
-            let existingLayout = div.layout;
-            let currentZoom = null;
-            if (existingLayout && existingLayout.xaxis && existingLayout.xaxis.range) {{
-                currentZoom = {{
-                    xaxis: existingLayout.xaxis.range,
-                    yaxis: existingLayout.yaxis.range
-                }};
-            }}
-
-            Plotly.newPlot(div, [trace], layout, config).then(function() {{
-                if (currentZoom) {{
-                    Plotly.relayout(div, {{
-                        'xaxis.range': currentZoom.xaxis,
-                        'yaxis.range': currentZoom.yaxis
-                    }});
-                }}
-            }});
-        </script>
-    </body>
-    </html>
-    """
-    components.html(html_code, height=580)
-
-# Hilfsfunktion für Quanten-Membran (3D) mit echtem Fullscreen
-def get_quantum_html(market_name, price, vol_num):
+# Funktion für persistente Quanten-Membran (3D)
+def get_persistent_quantum_html(market_name, price, vol_num, key_suffix=""):
     return f"""
     <!DOCTYPE html>
     <html>
@@ -329,11 +240,11 @@ def get_quantum_html(market_name, price, vol_num):
         <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
         <style>
             html, body {{ margin: 0; padding: 0; width: 100%; height: 100%; background: #000000; overflow: hidden; }}
-            #chart-container {{ width: 100%; height: 100%; position: relative; }}
-            #plotly-div {{ width: 100%; height: 550px; }}
-            :-webkit-full-screen #plotly-div {{ height: 100vh !important; }}
-            :-moz-full-screen #plotly-div {{ height: 100vh !important; }}
-            :fullscreen #plotly-div {{ height: 100vh !important; }}
+            #chart-container_{key_suffix} {{ width: 100%; height: 100%; position: relative; }}
+            #plotly-div_{key_suffix} {{ width: 100%; height: 550px; }}
+            :-webkit-full-screen #plotly-div_{key_suffix} {{ height: 100vh !important; }}
+            :-moz-full-screen #plotly-div_{key_suffix} {{ height: 100vh !important; }}
+            :fullscreen #plotly-div_{key_suffix} {{ height: 100vh !important; }}
 
             .controls-overlay {{
                 position: absolute; top: 8px; left: 12px; z-index: 100;
@@ -352,32 +263,24 @@ def get_quantum_html(market_name, price, vol_num):
         </style>
     </head>
     <body>
-        <div id="chart-container">
+        <div id="chart-container_{key_suffix}">
             <div class="controls-overlay">
                 <div class="market-badge">{market_name}: ${price}</div>
                 <button class="fs-btn" onclick="toggleFullscreen()">⛶ Fullscreen</button>
             </div>
-            <div id="plotly-div"></div>
+            <div id="plotly-div_{key_suffix}"></div>
         </div>
         <script>
             function toggleFullscreen() {{
-                var elem = document.getElementById('chart-container');
+                var elem = document.getElementById('chart-container_{key_suffix}');
                 if (!document.fullscreenElement && !document.webkitFullscreenElement && !document.mozFullScreenElement) {{
-                    if (elem.requestFullscreen) {{
-                        elem.requestFullscreen();
-                    }} else if (elem.webkitRequestFullscreen) {{
-                        elem.webkitRequestFullscreen();
-                    }} else if (elem.mozRequestFullScreen) {{
-                        elem.mozRequestFullScreen();
-                    }}
+                    if (elem.requestFullscreen) {{ elem.requestFullscreen(); }}
+                    else if (elem.webkitRequestFullscreen) {{ elem.webkitRequestFullscreen(); }}
+                    else if (elem.mozRequestFullScreen) {{ elem.mozRequestFullScreen(); }}
                 }} else {{
-                    if (document.exitFullscreen) {{
-                        document.exitFullscreen();
-                    }} else if (document.webkitExitFullscreen) {{
-                        document.webkitExitFullscreen();
-                    }} else if (document.mozCancelFullScreen) {{
-                        document.mozCancelFullScreen();
-                    }}
+                    if (document.exitFullscreen) {{ document.exitFullscreen(); }}
+                    else if (document.webkitExitFullscreen) {{ document.webkitExitFullscreen(); }}
+                    else if (elem.mozCancelFullScreen) {{ elem.mozCancelFullScreen(); }}
                 }}
             }}
 
@@ -410,6 +313,9 @@ def get_quantum_html(market_name, price, vol_num):
                 lighting: {{ ambient: 0.6, diffuse: 0.8, specular: 0.05, roughness: 0.95 }}
             }}];
 
+            let savedCam = sessionStorage.getItem('cam_{key_suffix}');
+            let initialCamera = savedCam ? JSON.parse(savedCam) : {{ eye: {{x: 1.6, y: -1.6, z: 1.2}} }};
+
             const layout = {{
                 template: 'plotly_dark',
                 paper_bgcolor: '#000000', plot_bgcolor: '#000000',
@@ -419,18 +325,26 @@ def get_quantum_html(market_name, price, vol_num):
                     xaxis: {{showgrid: true, zeroline: true, title: 'Strike', gridcolor: '#333', zerolinecolor: '#555'}},
                     yaxis: {{showgrid: true, zeroline: true, title: 'Time', gridcolor: '#333', zerolinecolor: '#555'}},
                     zaxis: {{showgrid: true, zeroline: true, title: 'Volatility', range: [0, 3.5], gridcolor: '#333', zerolinecolor: '#555'}},
-                    camera: {{ eye: {{x: 1.6, y: -1.6, z: 1.2}} }}
+                    camera: initialCamera
                 }}
             }};
 
-            let plotDiv = document.getElementById('plotly-div');
+            let plotDiv = document.getElementById('plotly-div_{key_suffix}');
             Plotly.newPlot(plotDiv, data, layout, {{responsive: true, scrollZoom: true}});
+
+            plotDiv.on('plotly_relayout', function(eventData) {{
+                if (eventData && eventData['scene.camera']) {{
+                    sessionStorage.setItem('cam_{key_suffix}', JSON.stringify(eventData['scene.camera']));
+                }} else if (plotDiv.layout && plotDiv.layout.scene && plotDiv.layout.scene.camera) {{
+                    sessionStorage.setItem('cam_{key_suffix}', JSON.stringify(plotDiv.layout.scene.camera));
+                }}
+            }});
 
             let frame = 0;
             function animate() {{
                 frame += 0.02;
                 let currentData = getSurface(frame);
-                Plotly.restyle(plotDiv, {{ x: [currentData.x], y: [currentData.y], z: [currentData.z] }}, [0]);
+                Plotly.restyle(plotDiv, {{ z: [currentData.z] }}, [0]);
                 requestAnimationFrame(animate);
             }}
             requestAnimationFrame(animate);
@@ -458,11 +372,11 @@ if "TradingView Live-Terminal" in view_mode:
 
 elif "Eigene Kerzen" in view_mode:
     st.subheader(f"🕯️ Eigene Kerzen (Custom Python Engine) — {selected_market}")
-    render_persistent_custom_candles(df_data, f"Custom OHLC Stream — {selected_market}")
+    render_native_custom_candles(df_data, f"Custom OHLC Stream — {selected_market}", chart_key="single_candles_native")
 
 elif "Quanten-Membran" in view_mode:
     st.subheader(f"🧊 Quanten-Membran (Matt) — {selected_market}")
-    html_content = get_quantum_html(selected_market, f"{base_price:,.2f}", volatility_factor)
+    html_content = get_persistent_quantum_html(selected_market, f"{base_price:,.2f}", volatility_factor, key_suffix="single_quantum")
     components.html(html_content, height=620)
 
 else:  
@@ -471,11 +385,11 @@ else:
     
     with col_a:
         st.markdown("**🕯️ Eigene Kerzen (Custom)**")
-        render_persistent_custom_candles(df_data, f"Custom Stream — {selected_market}")
+        render_native_custom_candles(df_data, f"Custom Stream — {selected_market}", chart_key="split_candles_native")
         
     with col_b:
         st.markdown("**🧊 Quanten-Membran (3D)**")
-        html_content = get_quantum_html(selected_market, f"{base_price:,.2f}", volatility_factor)
+        html_content = get_persistent_quantum_html(selected_market, f"{base_price:,.2f}", volatility_factor, key_suffix="split_quantum")
         components.html(html_content, height=580)
 
 # Live-Feed Loop
