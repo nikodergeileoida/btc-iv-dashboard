@@ -142,13 +142,13 @@ def get_quantum_html(market_name, price, vol_num, vol_str):
         </div>
         <div id="plotly-div"></div>
         <script>
-            function toggleFullscreen() {
-                if (!document.fullscreenElement) {
+            function toggleFullscreen() {{
+                if (!document.fullscreenElement) {{
                     document.documentElement.requestFullscreen().catch(err => {{}});
-                } else {
+                }} else {{
                     if (document.exitFullscreen) {{ document.exitFullscreen(); }}
-                }
-            }
+                }}
+            }}
 
             const n = 50;
             const vol = {vol_num};
@@ -168,7 +168,7 @@ def get_quantum_html(market_name, price, vol_num, vol_str):
                     x.push(rowX); y.push(rowY); z.push(rowZ);
                 }}
                 return {{ x: x, y: y, z: z }};
-            }
+            }}
 
             let initialData = getSurface(0);
             const data = [{{
