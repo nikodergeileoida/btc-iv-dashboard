@@ -14,7 +14,7 @@ st.sidebar.title("⚡ Terminal Control")
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 👁️ Ansicht")
-view_mode = st.sidebar.radio("Modus wählen:", ["📊 Chart (Candlestick)", "🧊 Rössler-Attraktor (Falten-Chaos)"])
+view_mode = st.sidebar.radio("Modus wählen:", ["📊 Chart (Candlestick)", "🧊 Quanten-Membran (3D-Oberfläche)"])
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🌍 Märkte")
@@ -180,9 +180,9 @@ if "Chart" in view_mode:
     st.caption("ℹ️ **Tiefschwarzer Live-Chart:** Vollständig freies Verschieben (Pan) und Zoomen per Mausrad/Klick.")
 
 else:
-    st.subheader(f"🧊 Rössler-Attraktor (Falten-Chaos) — {selected_market}")
+    st.subheader(f"🧊 Quanten-Membran (3D-Oberfläche) — {selected_market}")
     
-    raw_rossler_html = """
+    raw_surface_html = """
     <!DOCTYPE html>
     <html>
     <head>
@@ -209,45 +209,52 @@ else:
         </style>
     </head>
     <body>
-        <div class="market-badge">MARKET_NAME: $BASE_PRICE_VAL (Rössler Chaos)</div>
+        <div class="market-badge">MARKET_NAME: $BASE_PRICE_VAL (Quantum Mesh)</div>
         <div class="zoom-controls">
             <button class="zoom-btn" onclick="zoomIn()" title="Hineinzoomen">+</button>
             <button class="zoom-btn" onclick="zoomOut()" title="Herauszoomen">-</button>
         </div>
         <div id="plotly-div"></div>
         <script>
-            const a = 0.2;
-            const b = 0.2;
-            const c = 5.7;
-            
-            let x = 0.1, y = 0.1, z = 0.1;
-            let dt = 0.04;
-            
-            let x_trail = [], y_trail = [], z_trail = [];
-            const maxPoints = 2500;
+            const n = 45;
 
-            for (let i = 0; i < maxPoints; i++) {
-                let dx = -y - z;
-                let dy = x + a * y;
-                let dz = b + z * (x - c);
-                x += dx * dt;
-                y += dy * dt;
-                z += dz * dt;
-                x_trail.push(x);
-                y_trail.push(y);
-                z_trail.push(z);
+            function getSurface(frame) {
+                let x = [], y = [], z = [];
+                for (let i = 0; i < n; i++) {
+                    let rowX = [], rowY = [], rowZ = [];
+                    let u = (i / (n - 1)) * 5 - 2.5;
+                    for (let j = 0; j < n; j++) {
+                        let v = (j / (n - 1)) * 5 - 2.5;
+                        
+                        // Animierte Minimalfläche / Wellenform
+                        let r = Math.sqrt(u*u + v*v);
+                        let pz = Math.sin(r * 2 - frame) * Math.cos(u * 0.8 + frame * 0.5) * 1.2;
+                        
+                        rowX.push(u);
+                        rowY.push(v);
+                        rowZ.push(pz);
+                    }
+                    x.push(rowX);
+                    y.push(rowY);
+                    z.push(rowZ);
+                }
+                return { x: x, y: y, z: z };
             }
 
+            let initialData = getSurface(0);
+
             const data = [{
-                type: 'scatter3d',
-                mode: 'lines',
-                x: x_trail,
-                y: y_trail,
-                z: z_trail,
-                line: {
-                    color: z_trail,
-                    colorscale: 'Electric',
-                    width: 3
+                type: 'surface',
+                x: initialData.x,
+                y: initialData.y,
+                z: initialData.z,
+                colorscale: 'YlGnBu',
+                showscale: false,
+                lighting: {
+                    ambient: 0.4,
+                    diffuse: 0.8,
+                    specular: 0.5,
+                    roughness: 0.3
                 }
             }];
 
@@ -261,7 +268,7 @@ else:
                     bgcolor: '#000000',
                     xaxis: {showgrid: false, zeroline: false, showticklabels: false, title: ''},
                     yaxis: {showgrid: false, zeroline: false, showticklabels: false, title: ''},
-                    zaxis: {showgrid: false, zeroline: false, showticklabels: false, title: ''},
+                    zaxis: {showgrid: false, zeroline: false, showticklabels: false, title: '', range: [-2, 2]},
                     camera: { eye: {x: 1.5, y: -1.5, z: 1.2} }
                 }
             };
@@ -287,32 +294,15 @@ else:
             plotDiv.addEventListener('touchstart', () => { isInteracting = true; });
             window.addEventListener('touchend', () => { isInteracting = false; });
 
+            let frame = 0;
             function runAnimation() {
                 if (!isInteracting) {
-                    for(let s = 0; s < 3; s++) {
-                        let dx = -y - z;
-                        let dy = x + a * y;
-                        let dz = b + z * (x - c);
-                        x += dx * dt;
-                        y += dy * dt;
-                        z += dz * dt;
-                        
-                        x_trail.push(x);
-                        y_trail.push(y);
-                        z_trail.push(z);
-                        
-                        if (x_trail.length > maxPoints) {
-                            x_trail.shift();
-                            y_trail.shift();
-                            z_trail.shift();
-                        }
-                    }
-
+                    frame += 0.05;
+                    let currentData = getSurface(frame);
                     Plotly.restyle(plotDiv, {
-                        x: [x_trail],
-                        y: [y_trail],
-                        z: [z_trail],
-                        'line.color': [z_trail]
+                        x: [currentData.x],
+                        y: [currentData.y],
+                        z: [currentData.z]
                     }, [0]);
                 }
                 setTimeout(runAnimation, 40);
@@ -324,11 +314,11 @@ else:
     </html>
     """
     
-    rossler_html = (
-        raw_rossler_html
+    surface_html = (
+        raw_surface_html
         .replace("MARKET_NAME", selected_market)
         .replace("BASE_PRICE_VAL", f"{base_price:,.2f}")
     )
     
-    components.html(rossler_html, height=600)
-    st.caption("ℹ️ **Rössler-Attraktor (Falten-Chaos):** Ein fließendes, sich selbst faltendes Band im elektrischen Farbverlauf. Nutze die Zoom-Buttons oder drehe das Modell frei mit der Maus.")
+    components.html(surface_html, height=600)
+    st.caption("ℹ️ **Quanten-Membran (3D-Oberfläche):** Eine durchgehende, beleuchtete 3D-Mesh-Fläche, die sich fließend im Takt verändert. Nutze die Zoom-Buttons oder drehe das Modell per Maus.")
