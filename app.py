@@ -56,7 +56,7 @@ def get_market_status():
 
 status_text, status_flag = get_market_status()
 
-# Session State für stabile Kursdaten & Live-Feed Simulation
+# Session State für stabile Kursdaten
 if "market_data" not in st.session_state or st.session_state.get("current_market") != selected_market:
     np.random.seed(sum(map(ord, selected_market)))
     timestamps = [datetime.now() - timedelta(minutes=i) for i in range(40, 0, -1)]
@@ -83,50 +83,53 @@ if "market_data" not in st.session_state or st.session_state.get("current_market
     }
     st.session_state.current_market = selected_market
 
+if "chart_counter" not in st.session_state:
+    st.session_state.chart_counter = 0
+
 data = st.session_state.market_data
-
-# Live-Tick: Aktualisiert den Preis bei jedem Rerun dynamisch
-tick_change = np.random.randn() * (base_price * 0.0003)
-data["closes"][-1] += tick_change
-data["highs"][-1] = max(data["highs"][-1], data["closes"][-1])
-data["lows"][-1] = min(data["lows"][-1], data["closes"][-1])
-
-current_price = data["closes"][-1]
-price_diff = current_price - data["opens"][0]
-diff_percent = (price_diff / data["opens"][0]) * 100
 
 # 3. Haupt-Layout
 st.title(f"Terminal // {selected_market}")
 st.markdown(f"Kategorie: **{asset_class}** | Status: **{status_text}**")
 
 col1, col2, col3 = st.columns(3)
-col1.metric("Aktueller Preis", f"{current_price:,.2f}", f"{diff_percent:+.2f}%")
-col2.metric("Marktstatus", status_text, status_flag)
-col3.metric("Ausgewählter Asset", selected_market, "Aktiv")
-
-st.divider()
 
 # 4. Ansichten
 if "Chart" in view_mode:
     @st.fragment(run_every=1.0)
     def render_live_candlestick():
-        cur_p = data["closes"][-1]
-        p_diff = cur_p - data["opens"][0]
-        p_pct = (p_diff / data["opens"][0]) * 100
+        # Live-Tick auf den letzten Kurs anwenden
+        tick_change = np.random.randn() * (base_price * 0.0004)
+        data["closes"][-1] += tick_change
+        data["highs"][-1] = max(data["highs"][-1], data["closes"][-1])
+        data["lows"][-1] = min(data["lows"][-1], data["closes"][-1])
+        
+        st.session_state.chart_counter += 1
+        
+        current_price = data["closes"][-1]
+        price_diff = current_price - data["opens"][0]
+        diff_percent = (price_diff / data["opens"][0]) * 100
+
+        col1.metric("Aktueller Preis", f"{current_price:,.2f}", f"{diff_percent:+.2f}%")
+        col2.metric("Marktstatus", status_text, status_flag)
+        col3.metric("Ausgewählter Asset", selected_market, "Aktiv")
+        
+        st.divider()
+        st.subheader(f"📈 Candlestick Chart — {selected_market}")
 
         fig_candle = go.Figure(data=[go.Candlestick(
-            x=data["times"],
-            open=data["opens"],
-            high=data["highs"],
-            low=data["lows"],
-            close=data["closes"]
+            x=list(data["times"]),
+            open=list(data["opens"]),
+            high=list(data["highs"]),
+            low=list(data["lows"]),
+            close=list(data["closes"])
         )])
         
         fig_candle.update_layout(
             template="plotly_dark",
             title=f"Echtzeit-Kursverlauf ({selected_market})",
             xaxis_rangeslider_visible=True,
-            dragmode='pan',  # Nur Verschieben, kein Zoom-Rechteck
+            dragmode='pan',  # Nur Verschieben beim Halten, kein Zoom-Kasten!
             height=600,
             margin=dict(l=20, r=50, b=20, t=50)
         )
@@ -135,7 +138,7 @@ if "Chart" in view_mode:
         fig_candle.update_xaxes(fixedrange=False)
         
         fig_candle.add_annotation(
-            text=f"{selected_market}: ${cur_p:,.2f} ({p_pct:+.2f}%)",
+            text=f"{selected_market}: ${current_price:,.2f} ({diff_percent:+.2f}%)",
             xref="paper", yref="paper",
             x=0.98, y=0.95,
             showarrow=False,
@@ -153,16 +156,25 @@ if "Chart" in view_mode:
                 'displayModeBar': True,
                 'modeBarButtonsToRemove': ['zoom2d', 'select2d', 'lasso2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d']
             },
-            key="candlestick_live_feed"
+            key=f"candlestick_live_{st.session_state.chart_counter}"
         )
-        st.caption("ℹ️ **Live-Feed Aktiv:** Der Chart aktualisiert sich sekündlich im Hintergrund. Klicken & Ziehen verschiebt die Ansicht.")
+        st.caption("ℹ️ **Live-Feed Aktiv:** Der Chart aktualisiert sich sekündlich. Klicken & Ziehen verschiebt den Chart butterweich.")
 
     render_live_candlestick()
 
 else:
+    current_price = data["closes"][-1]
+    price_diff = current_price - data["opens"][0]
+    diff_percent = (price_diff / data["opens"][0]) * 100
+
+    col1.metric("Aktueller Preis", f"{current_price:,.2f}", f"{diff_percent:+.2f}%")
+    col2.metric("Marktstatus", status_text, status_flag)
+    col3.metric("Ausgewählter Asset", selected_market, "Aktiv")
+    
+    st.divider()
     st.subheader(f"🧊 3D Volatility Surface — {selected_market}")
     
-    # Vollständig tiefschwarzer Hintergrund mit flüssiger, asymmetrischer Live-Animation
+    # Vollständig tiefschwarzer Hintergrund mit RESTYLE (Kamera bleibt absolut frei & ungesperrt)
     raw_html = """
     <!DOCTYPE html>
     <html>
@@ -249,16 +261,10 @@ else:
                     Z.push(rowZ);
                 }
                 
-                Plotly.animate('plotly-div', {
-                    data: [{z: Z}],
-                    traces: [0],
-                    layout: {}
-                }, {
-                    transition: {duration: 40, easing: 'linear'},
-                    frame: {duration: 40, redraw: true}
-                });
+                // Restyle aktualisiert NUR die Daten (Z), sodass die Kamera-Position des Users 100% frei bleibt!
+                Plotly.restyle('plotly-div', {z: [Z]}, [0]);
                 
-                requestAnimationFrame(runAnimation);
+                setTimeout(runAnimation, 40);
             }
 
             requestAnimationFrame(runAnimation);
@@ -275,4 +281,4 @@ else:
     )
     
     components.html(html_code, height=600)
-    st.caption("ℹ️ **Tiefschwarzes 3D-Modell:** Läuft vollautomatisch, flüssig und asymmetrisch mit hohem Live-Volatilitäts-Feed.")
+    st.caption("ℹ️ **Tiefschwarzes 3D-Modell (Kamera frei):** Die Kamera rastet nicht mehr ein – du kannst das Modell jederzeit frei drehen und zoomen.")
