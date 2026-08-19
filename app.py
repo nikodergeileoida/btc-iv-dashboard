@@ -120,7 +120,6 @@ def fetch_robust_market_data(asset_cls, info):
 
 df_raw, base_price = fetch_robust_market_data(asset_class, market_info)
 
-# Eigene Kerzen verarbeiten / manipulieren
 if df_raw is not None and not df_raw.empty:
     df_data = df_raw.copy()
     if smoothing > 1:
@@ -137,7 +136,6 @@ if df_raw is not None and not df_raw.empty:
 else:
     df_data = None
 
-# Marktstatus-Logik
 def get_market_status():
     if "Krypto" in asset_class or "Forex" in asset_class:
         return "🟢 24/7 Geöffnet (Live)", "Open"
@@ -151,7 +149,6 @@ def get_market_status():
 
 status_text, status_flag = get_market_status()
 
-# Haupt-Layout
 display_symbol = market_info.get("yf", market_info.get("binance", ""))
 st.title(f"Terminal // {selected_market} ({display_symbol})")
 st.markdown(f"Kategorie: **{asset_class}** | Status: **{status_text}**")
@@ -163,7 +160,6 @@ col3.metric("Modus", view_mode, "Aktiv")
 
 st.divider()
 
-# Hilfsfunktion für TradingView Original-Widget
 def get_tradingview_html(symbol_key):
     tv_symbol_map = {
         "BTCUSDT": "BINANCE:BTCUSDT", "ETHUSDT": "BINANCE:ETHUSDT", "SOLUSDT": "BINANCE:SOLUSDT",
@@ -192,7 +188,6 @@ def get_tradingview_html(symbol_key):
     </html>
     """
 
-# 💡 Perfekt persistente Custom-Kerzen
 def get_persistent_candles_html(df, title_text, key_suffix=""):
     if df is None or df.empty:
         return "<div>Keine Kerzen-Daten verfügbar.</div>"
@@ -262,7 +257,6 @@ def get_persistent_candles_html(df, title_text, key_suffix=""):
     </html>
     """
 
-# 💡 3D Quanten-Membran (Blackscreen-Fix mit sicherem WebGL-Kontext)
 def get_persistent_quantum_html(market_name, vol_num, key_suffix=""):
     return f"""
     <!DOCTYPE html>
@@ -313,7 +307,7 @@ def get_persistent_quantum_html(market_name, vol_num, key_suffix=""):
                     let u = (i / (n - 1)) * 5 - 2.5;
                     for (let j = 0; j < n; j++) {{
                         let v = (j / (n - 1)) * 5 - 2.5;
-                        let r = Math.sqrt(u*u + v*v);
+                        let r = Math.sqrt(u * u + v * v);
                         let wave = Math.sin(r * 2 - frame) * Math.cos(u * 0.8 + frame * 0.4);
                         let pz = Math.abs(wave) * vol * 1.2 + 0.05; 
                         rowX.push(u); rowY.push(v); rowZ.push(pz);
@@ -321,36 +315,35 @@ def get_persistent_quantum_html(market_name, vol_num, key_suffix=""):
                     x.push(rowX); y.push(rowY); z.push(rowZ);
                 }}
                 return {{ x: x, y: y, z: z }};
-            }
+            }}
 
             let initialData = getSurface(0);
-            const data = [{
+            const data = [{{
                 type: 'surface',
                 x: initialData.x, y: initialData.y, z: initialData.z,
                 colorscale: [[0, '#4b0082'], [0.3, '#9400d3'], [0.6, '#ff8c00'], [1, '#ffff00']],
                 showscale: false,
-                lighting: { ambient: 0.6, diffuse: 0.8, specular: 0.05, roughness: 0.95 }
-            }];
+                lighting: {{ ambient: 0.6, diffuse: 0.8, specular: 0.05, roughness: 0.95 }}
+            }}];
 
             let savedCam = sessionStorage.getItem('cam_{key_suffix}');
             let initialCamera = savedCam ? JSON.parse(savedCam) : {{ eye: {{x: 1.6, y: -1.6, z: 1.2}} }};
 
-            const layout = {
+            const layout = {{
                 template: 'plotly_dark',
                 paper_bgcolor: '#000000', plot_bgcolor: '#000000',
-                autosize: true, margin: {l: 0, r: 0, b: 0, t: 0},
-                scene: {
+                autosize: true, margin: {{l: 0, r: 0, b: 0, t: 0}},
+                scene: {{
                     bgcolor: '#000000',
-                    xaxis: {showgrid: true, zeroline: true, title: 'Strike', gridcolor: '#333'},
-                    yaxis: {showgrid: true, zeroline: true, title: 'Time', gridcolor: '#333'},
-                    zaxis: {showgrid: true, zeroline: true, title: 'Volatility', range: [0, 3.5], gridcolor: '#333'},
+                    xaxis: {{showgrid: true, zeroline: true, title: 'Strike', gridcolor: '#333'}},
+                    yaxis: {{showgrid: true, zeroline: true, title: 'Time', gridcolor: '#333'}},
+                    zaxis: {{showgrid: true, zeroline: true, title: 'Volatility', range: [0, 3.5], gridcolor: '#333'}},
                     camera: initialCamera
-                }
-            };
+                }}
+            }};
 
             let plotDiv = document.getElementById('plotly-div_{key_suffix}');
             
-            // Verzögerter Start, damit WebGL den Kontext sicher aufbaut (verhindert Blackscreen)
             setTimeout(function() {{
                 Plotly.newPlot(plotDiv, data, layout, {{responsive: true, scrollZoom: true}}).then(function() {{
                     
@@ -383,7 +376,6 @@ def get_persistent_quantum_html(market_name, vol_num, key_suffix=""):
     </html>
     """
 
-# Volatilitätsfaktor stabil berechnen
 if df_raw is not None and len(df_raw) > 1:
     try:
         volatility_factor = float((df_raw['High'].max() - df_raw['Low'].min()) / base_price * 50)
@@ -394,7 +386,6 @@ if df_raw is not None and len(df_raw) > 1:
 else:
     volatility_factor = 1.0
 
-# Ansichten Rendering
 tv_map_key = market_info.get("binance", market_info.get("yf", "BTCUSDT"))
 
 if "TradingView Live-Terminal" in view_mode:
@@ -423,7 +414,6 @@ else:
         html_content = get_persistent_quantum_html(selected_market, volatility_factor, key_suffix="split_quantum")
         components.html(html_content, height=580)
 
-# Live-Feed Loop
 if live_feed:
     time.sleep(10)
     st.rerun()
