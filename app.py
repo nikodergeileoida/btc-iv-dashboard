@@ -1,6 +1,5 @@
 import streamlit as st
 import streamlit.components.v1 as components
-import plotly.graph_objects as go
 import yfinance as yf
 import pandas as pd
 import json
@@ -82,7 +81,7 @@ def fetch_robust_market_data(asset_cls, info):
     df = pd.DataFrame()
     current_price = 100.0
 
-    if asset_cls == "Kryptowährungen" and "binance" in info:
+    if asset_cls == "Kryptowährungen" && "binance" in info:
         try:
             url = f"https://api.binance.com/api/v3/klines?symbol={info['binance']}&interval=1m&limit=150"
             response = requests.get(url, timeout=3)
@@ -193,44 +192,126 @@ def get_tradingview_html(symbol_key):
     </html>
     """
 
-# Flimmerfreie & Zoom-stabile Custom-Kerzen via st.plotly_chart & uirevision
-def render_native_custom_candles(df, title_text, chart_key="candles"):
-    if df is None or df.empty:
-        st.warning("Keine Kerzen-Daten verfügbar.")
-        return
+# 💡 Perfekt persistente Custom-Kerzen (Zoom-stabil, kein Flackern, uneingeschränktes Zoomen)
+def get_persistent_candles_html(df, title_text, key_suffix=""):
+    if df is None || df.empty:
+        return "<div>Keine Kerzen-Daten verfügbar.</div>"
     
-    fig = go.Figure(data=[go.Candlestick(
-        x=df.index,
-        open=df['Open'],
-        high=df['High'],
-        low=df['Low'],
-        close=df['Close'],
-        increasing_line_color='#089981', increasing_fillcolor='#089981',
-        decreasing_line_color='#F23645', decreasing_fillcolor='#F23645'
-    )])
+    x_data = [d.strftime('%Y-%m-%d %H:%M:%S') for d in df.index]
+    open_data = df['Open'].tolist()
+    high_data = df['High'].tolist()
+    low_data = df['Low'].tolist()
+    close_data = df['Close'].tolist()
 
-    fig.update_layout(
-        template='plotly_dark',
-        paper_bgcolor='#131722',
-        plot_bgcolor='#131722',
-        uirevision='persistent_zoom_state',  # <--- HIER: Hält den Zoom-Zustand bei Live-Updates stabil!
-        margin=dict(l=10, r=50, t=30, b=10),
-        xaxis=dict(
-            rangeslider=dict(visible=False),
-            gridcolor='#1f293d',
-            showspikes=True, spikecolor='#787b86', spikethickness=1, spikedash='dot'
-        ),
-        yaxis=dict(
-            side='right',
-            gridcolor='#1f293d',
-            showspikes=True, spikecolor='#787b86', spikethickness=1, spikedash='dot'
-        ),
-        title=dict(text=title_text, font=dict(size=14, color='#d1d4dc')),
-        dragmode='pan',
-        hovermode='x unified'
-    )
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+        <style>
+            html, body {{ margin: 0; padding: 0; width: 100%; height: 100%; background: #131722; overflow: hidden; }}
+            #chart-container_{key_suffix} {{ width: 100%; height: 100%; position: relative; }}
+            #chart-div_{key_suffix} {{ width: 100%; height: 550px; }}
+            :-webkit-full-screen #chart-div_{key_suffix} {{ height: 100vh !important; }}
+            :-moz-full-screen #chart-div_{key_suffix} {{ height: 100vh !important; }}
+            :fullscreen #chart-div_{key_suffix} {{ height: 100vh !important; }}
+            
+            .controls-overlay {{
+                position: absolute; top: 8px; left: 12px; z-index: 100;
+            }}
+            .fs-btn {{
+                font-family: Arial, sans-serif; font-size: 11px; color: #fff;
+                background: rgba(30,30,30,0.85); padding: 5px 8px; border: 1px solid #555; border-radius: 4px;
+                cursor: pointer; transition: background 0.2s;
+            }}
+            .fs-btn:hover {{ background: rgba(50,50,50,1); border-color: #089981; }}
+        </style>
+    </head>
+    <body>
+        <div id="chart-container_{key_suffix}">
+            <div class="controls-overlay">
+                <button class="fs-btn" onclick="toggleFullscreen()">⛶ Fullscreen</button>
+            </div>
+            <div id="chart-div_{key_suffix}"></div>
+        </div>
+        <script>
+            function toggleFullscreen() {{
+                var elem = document.getElementById('chart-container_{key_suffix}');
+                if (!document.fullscreenElement && !document.webkitFullscreenElement && !document.mozFullScreenElement) {{
+                    if (elem.requestFullscreen) {{ elem.requestFullscreen(); }}
+                    else if (elem.webkitRequestFullscreen) {{ elem.webkitRequestFullscreen(); }}
+                    else if (elem.mozRequestFullScreen) {{ elem.mozRequestFullScreen(); }}
+                }} else {{
+                    if (document.exitFullscreen) {{ document.exitFullscreen(); }}
+                    else if (document.webkitExitFullscreen) {{ document.webkitExitFullscreen(); }}
+                    else if (elem.mozCancelFullScreen) {{ elem.mozCancelFullScreen(); }}
+                }}
+            }}
 
-    st.plotly_chart(fig, use_container_width=True, key=chart_key)
+            const trace = {{
+                x: {json.dumps(x_data)},
+                open: {json.dumps(open_data)},
+                high: {json.dumps(high_data)},
+                low: {json.dumps(low_data)},
+                close: {json.dumps(close_data)},
+                type: 'candlestick',
+                increasing: {{ line: {{ color: '#089981' }}, fillcolor: '#089981' }},
+                decreasing: {{ line: {{ color: '#F23645' }}, fillcolor: '#F23645' }}
+            }};
+
+            const layout = {{
+                template: 'plotly_dark',
+                paper_bgcolor: '#131722',
+                plot_bgcolor: '#131722',
+                margin: {{ l: 10, r: 50, t: 30, b: 10 }},
+                xaxis: {{
+                    rangeslider: {{ visible: false }},
+                    gridcolor: '#1f293d',
+                    showspikes: true, spikecolor: '#787b86', spikethickness: 1, spikedash: 'dot'
+                }},
+                yaxis: {{
+                    side: 'right',
+                    gridcolor: '#1f293d',
+                    showspikes: true, spikecolor: '#787b86', spikethickness: 1, spikedash: 'dot'
+                }},
+                title: {{ text: {json.dumps(title_text)}, font: {{ size: 14, color: '#d1d4dc' }} }},
+                dragmode: 'pan',
+                hovermode: 'x unified'
+            }};
+
+            const config = {{
+                scrollZoom: true,
+                displayModeBar: true,
+                modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+                responsive: true
+            }};
+
+            const div = document.getElementById('chart-div_{key_suffix}');
+            let savedZoom = sessionStorage.getItem('zoom_{key_suffix}');
+            let currentZoom = savedZoom ? JSON.parse(savedZoom) : null;
+
+            Plotly.newPlot(div, [trace], layout, config).then(function() {{
+                if (currentZoom && currentZoom.xaxis) {{
+                    Plotly.relayout(div, {{
+                        'xaxis.range': currentZoom.xaxis,
+                        'yaxis.range': currentZoom.yaxis
+                    }});
+                }}
+                
+                div.on('plotly_relayout', function(eventData) {{
+                    if (div.layout && div.layout.xaxis && div.layout.xaxis.range) {{
+                        let zData = {{
+                            xaxis: div.layout.xaxis.range,
+                            yaxis: div.layout.yaxis.range
+                        }};
+                        sessionStorage.setItem('zoom_{key_suffix}', JSON.stringify(zData));
+                    }}
+                }});
+            }});
+        </script>
+    </body>
+    </html>
+    """
 
 # Funktion für persistente Quanten-Membran (3D)
 def get_persistent_quantum_html(market_name, price, vol_num, key_suffix=""):
@@ -355,7 +436,7 @@ def get_persistent_quantum_html(market_name, price, vol_num, key_suffix=""):
     """
 
 # Volatilitätsfaktor für 3D berechnen
-if df_raw is not None and len(df_raw) > 1:
+if df_raw is not None && len(df_raw) > 1:
     try:
         volatility_factor = float((df_raw['High'].max() - df_raw['Low'].min()) / base_price * 50)
         volatility_factor = max(0.5, min(volatility_factor, 3.0))
@@ -373,7 +454,7 @@ if "TradingView Live-Terminal" in view_mode:
 
 elif "Eigene Kerzen" in view_mode:
     st.subheader(f"🕯️ Eigene Kerzen (Custom Python Engine) — {selected_market}")
-    render_native_custom_candles(df_data, f"Custom OHLC Stream — {selected_market}", chart_key="single_candles_native")
+    components.html(get_persistent_candles_html(df_data, f"Custom OHLC Stream — {selected_market}", key_suffix="single_candles"), height=620)
 
 elif "Quanten-Membran" in view_mode:
     st.subheader(f"🧊 Quanten-Membran (Matt) — {selected_market}")
@@ -386,7 +467,7 @@ else:
     
     with col_a:
         st.markdown("**🕯️ Eigene Kerzen (Custom)**")
-        render_native_custom_candles(df_data, f"Custom Stream — {selected_market}", chart_key="split_candles_native")
+        components.html(get_persistent_candles_html(df_data, f"Custom Stream — {selected_market}", key_suffix="split_candles"), height=580)
         
     with col_b:
         st.markdown("**🧊 Quanten-Membran (3D)**")
