@@ -81,7 +81,7 @@ def fetch_robust_market_data(asset_cls, info):
     df = pd.DataFrame()
     current_price = 100.0
 
-    if asset_cls == "Kryptowährungen" && "binance" in info:
+    if asset_cls == "Kryptowährungen" and "binance" in info:
         try:
             url = f"https://api.binance.com/api/v3/klines?symbol={info['binance']}&interval=1m&limit=150"
             response = requests.get(url, timeout=3)
@@ -194,7 +194,7 @@ def get_tradingview_html(symbol_key):
 
 # 💡 Perfekt persistente Custom-Kerzen (Zoom-stabil, kein Flackern, uneingeschränktes Zoomen)
 def get_persistent_candles_html(df, title_text, key_suffix=""):
-    if df is None || df.empty:
+    if df is None or df.empty:
         return "<div>Keine Kerzen-Daten verfügbar.</div>"
     
     x_data = [d.strftime('%Y-%m-%d %H:%M:%S') for d in df.index]
@@ -436,7 +436,7 @@ def get_persistent_quantum_html(market_name, price, vol_num, key_suffix=""):
     """
 
 # Volatilitätsfaktor für 3D berechnen
-if df_raw is not None && len(df_raw) > 1:
+if df_raw is not None and len(df_raw) > 1:
     try:
         volatility_factor = float((df_raw['High'].max() - df_raw['Low'].min()) / base_price * 50)
         volatility_factor = max(0.5, min(volatility_factor, 3.0))
@@ -458,7 +458,7 @@ elif "Eigene Kerzen" in view_mode:
 
 elif "Quanten-Membran" in view_mode:
     st.subheader(f"🧊 Quanten-Membran (Matt) — {selected_market}")
-    html_content = get_persistent_quantum_html(selected_market, f"{base_price:,.2f}", volatility_factor, key_suffix="single_quantum")
+    html_content = get_persistent_quantum_html(selected_market, f"${base_price:,.2f}", volatility_factor, key_suffix="single_quantum")
     components.html(html_content, height=620)
 
 else:  
