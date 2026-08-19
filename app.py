@@ -192,13 +192,12 @@ def get_tradingview_html(symbol_key):
     </html>
     """
 
-# Funktion für persistente Custom-Kerzen via JavaScript (Hält den Zoom-Status beim Tick)
+# Funktion für persistente Custom-Kerzen mit echtem Fullscreen
 def render_persistent_custom_candles(df, title_text):
     if df is None or df.empty:
         st.warning("Keine Kerzen-Daten verfügbar.")
         return
     
-    # Daten in JSON konvertieren für JavaScript
     x_data = [d.strftime('%Y-%m-%d %H:%M:%S') for d in df.index]
     open_data = df['Open'].tolist()
     high_data = df['High'].tolist()
@@ -211,13 +210,54 @@ def render_persistent_custom_candles(df, title_text):
     <head>
         <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
         <style>
-            body {{ margin: 0; background: #131722; overflow: hidden; }}
-            #chart-div {{ width: 100%; height: 580px; }}
+            html, body {{ margin: 0; padding: 0; width: 100%; height: 100%; background: #131722; overflow: hidden; }}
+            #chart-container {{ width: 100%; height: 100%; position: relative; }}
+            #chart-div {{ width: 100%; height: 550px; }}
+            /* Im echten Vollbildmodus dehnt sich das Chart auf 100% aus */
+            :-webkit-full-screen #chart-div {{ height: 100vh !important; }}
+            :-moz-full-screen #chart-div {{ height: 100vh !important; }}
+            :fullscreen #chart-div {{ height: 100vh !important; }}
+            
+            .controls-overlay {{
+                position: absolute; top: 8px; left: 12px; z-index: 100;
+            }}
+            .fs-btn {{
+                font-family: Arial, sans-serif; font-size: 11px; color: #fff;
+                background: rgba(30,30,30,0.85); padding: 5px 8px; border: 1px solid #555; border-radius: 4px;
+                cursor: pointer; transition: background 0.2s;
+            }}
+            .fs-btn:hover {{ background: rgba(50,50,50,1); border-color: #089981; }}
         </style>
     </head>
     <body>
-        <div id="chart-div"></div>
+        <div id="chart-container">
+            <div class="controls-overlay">
+                <button class="fs-btn" onclick="toggleFullscreen()">⛶ Fullscreen</button>
+            </div>
+            <div id="chart-div"></div>
+        </div>
         <script>
+            function toggleFullscreen() {{
+                var elem = document.getElementById('chart-container');
+                if (!document.fullscreenElement && !document.webkitFullscreenElement && !document.mozFullScreenElement) {{
+                    if (elem.requestFullscreen) {{
+                        elem.requestFullscreen();
+                    }} else if (elem.webkitRequestFullscreen) {{
+                        elem.webkitRequestFullscreen();
+                    }} else if (elem.mozRequestFullScreen) {{
+                        elem.mozRequestFullScreen();
+                    }}
+                }} else {{
+                    if (document.exitFullscreen) {{
+                        document.exitFullscreen();
+                    }} else if (document.webkitExitFullscreen) {{
+                        document.webkitExitFullscreen();
+                    }} else if (document.mozCancelFullScreen) {{
+                        document.mozCancelFullScreen();
+                    }}
+                }}
+            }}
+
             const trace = {{
                 x: {json.dumps(x_data)},
                 open: {json.dumps(open_data)},
@@ -257,8 +297,6 @@ def render_persistent_custom_candles(df, title_text):
             }};
 
             const div = document.getElementById('chart-div');
-            
-            // Prüfen, ob der Chart schon existiert (Zoom-Zustand retten)
             let existingLayout = div.layout;
             let currentZoom = null;
             if (existingLayout && existingLayout.xaxis && existingLayout.xaxis.range) {{
@@ -280,46 +318,66 @@ def render_persistent_custom_candles(df, title_text):
     </body>
     </html>
     """
-    components.html(html_code, height=600)
+    components.html(html_code, height=580)
 
-# Hilfsfunktion für Quanten-Membran (3D)
-def get_quantum_html(market_name, price, vol_num, vol_str):
+# Hilfsfunktion für Quanten-Membran (3D) mit echtem Fullscreen
+def get_quantum_html(market_name, price, vol_num):
     return f"""
     <!DOCTYPE html>
     <html>
     <head>
         <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
         <style>
-            body {{ margin: 0; background: #000000; overflow: hidden; }}
-            #plotly-div {{ width: 100%; height: 580px; }}
+            html, body {{ margin: 0; padding: 0; width: 100%; height: 100%; background: #000000; overflow: hidden; }}
+            #chart-container {{ width: 100%; height: 100%; position: relative; }}
+            #plotly-div {{ width: 100%; height: 550px; }}
+            :-webkit-full-screen #plotly-div {{ height: 100vh !important; }}
+            :-moz-full-screen #plotly-div {{ height: 100vh !important; }}
+            :fullscreen #plotly-div {{ height: 100vh !important; }}
+
             .controls-overlay {{
-                position: absolute; top: 10px; left: 15px; z-index: 100;
-                display: flex; gap: 10px; align-items: center;
+                position: absolute; top: 8px; left: 12px; z-index: 100;
+                display: flex; gap: 8px; align-items: center;
             }}
             .market-badge {{
-                font-family: Arial Black, sans-serif; font-size: 13px; color: orange;
-                background: rgba(0,0,0,0.9); padding: 5px 10px; border: 1px solid #333; border-radius: 4px;
+                font-family: Arial Black, sans-serif; font-size: 11px; color: orange;
+                background: rgba(0,0,0,0.9); padding: 4px 8px; border: 1px solid #333; border-radius: 4px;
             }}
             .fs-btn {{
-                font-family: Arial, sans-serif; font-size: 12px; color: #fff;
-                background: rgba(30,30,30,0.9); padding: 6px 10px; border: 1px solid #555; border-radius: 4px;
+                font-family: Arial, sans-serif; font-size: 11px; color: #fff;
+                background: rgba(30,30,30,0.9); padding: 5px 8px; border: 1px solid #555; border-radius: 4px;
                 cursor: pointer; transition: background 0.2s;
             }}
             .fs-btn:hover {{ background: rgba(50,50,50,1); border-color: orange; }}
         </style>
     </head>
     <body>
-        <div class="controls-overlay">
-            <div class="market-badge">{market_name}: ${price} (Vol: {vol_str})</div>
-            <button class="fs-btn" onclick="toggleFullscreen()">⛶ Fullscreen</button>
+        <div id="chart-container">
+            <div class="controls-overlay">
+                <div class="market-badge">{market_name}: ${price}</div>
+                <button class="fs-btn" onclick="toggleFullscreen()">⛶ Fullscreen</button>
+            </div>
+            <div id="plotly-div"></div>
         </div>
-        <div id="plotly-div"></div>
         <script>
             function toggleFullscreen() {{
-                if (!document.fullscreenElement) {{
-                    document.documentElement.requestFullscreen().catch(err => {{}});
+                var elem = document.getElementById('chart-container');
+                if (!document.fullscreenElement && !document.webkitFullscreenElement && !document.mozFullScreenElement) {{
+                    if (elem.requestFullscreen) {{
+                        elem.requestFullscreen();
+                    }} else if (elem.webkitRequestFullscreen) {{
+                        elem.webkitRequestFullscreen();
+                    }} else if (elem.mozRequestFullScreen) {{
+                        elem.mozRequestFullScreen();
+                    }}
                 }} else {{
-                    if (document.exitFullscreen) {{ document.exitFullscreen(); }}
+                    if (document.exitFullscreen) {{
+                        document.exitFullscreen();
+                    }} else if (document.webkitExitFullscreen) {{
+                        document.webkitExitFullscreen();
+                    }} else if (document.mozCancelFullScreen) {{
+                        document.mozCancelFullScreen();
+                    }}
                 }}
             }}
 
@@ -404,7 +462,7 @@ elif "Eigene Kerzen" in view_mode:
 
 elif "Quanten-Membran" in view_mode:
     st.subheader(f"🧊 Quanten-Membran (Matt) — {selected_market}")
-    html_content = get_quantum_html(selected_market, f"{base_price:,.2f}", volatility_factor, f"{volatility_factor:.2f}")
+    html_content = get_quantum_html(selected_market, f"{base_price:,.2f}", volatility_factor)
     components.html(html_content, height=620)
 
 else:  
@@ -417,7 +475,7 @@ else:
         
     with col_b:
         st.markdown("**🧊 Quanten-Membran (3D)**")
-        html_content = get_quantum_html(selected_market, f"{base_price:,.2f}", volatility_factor, f"{volatility_factor:.2f}")
+        html_content = get_quantum_html(selected_market, f"{base_price:,.2f}", volatility_factor)
         components.html(html_content, height=580)
 
 # Live-Feed Loop
