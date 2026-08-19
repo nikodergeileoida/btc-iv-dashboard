@@ -1,4 +1,4 @@
- if "TradingView" in view_mode:
+if "TradingView" in view_mode:
     st.subheader(f"📈 TradingView Live-Terminal — {selected_market}")
 
     tv_symbol_map = {
@@ -24,29 +24,40 @@
     
     tv_symbol = tv_symbol_map.get(ticker_symbol, "BINANCE:BTCUSDT")
 
-    # Geändert: 100% Breite und Höhe auf 850px maximiert
+    # HTML Container nutzt nun die volle verfügbare Ansichtsfenster-Höhe (100vh)
     tv_widget_html = f"""
-    <div class="tradingview-widget-container" style="height:850px;width:100%">
-      <div class="tradingview-widget-container__widget" style="height:100%;width:100%"></div>
-      <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
-      {{
-        "autosize": true,
-        "symbol": "{tv_symbol}",
-        "interval": "D",
-        "timezone": "Etc/UTC",
-        "theme": "dark",
-        "style": "1",
-        "locale": "de",
-        "enable_publishing": false,
-        "hide_top_toolbar": false,
-        "hide_legend": false,
-        "save_image": false,
-        "calendar": false,
-        "support_host": "https://www.tradingview.com"
-      }}
-      </script>
-    </div>
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            html, body {{ margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; }}
+            .tradingview-widget-container {{ width: 100%; height: 100vh; }}
+        </style>
+    </head>
+    <body>
+        <div class="tradingview-widget-container">
+          <div class="tradingview-widget-container__widget" style="height:100%;width:100%"></div>
+          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
+          {{
+            "autosize": true,
+            "symbol": "{tv_symbol}",
+            "interval": "D",
+            "timezone": "Etc/UTC",
+            "theme": "dark",
+            "style": "1",
+            "locale": "de",
+            "enable_publishing": false,
+            "hide_top_toolbar": false,
+            "hide_legend": false,
+            "save_image": false,
+            "calendar": false,
+            "support_host": "https://www.tradingview.com"
+          }}
+          </script>
+        </div>
+    </body>
+    </html>
     """
     
-    # Streamlit Frame ebenfalls auf 880px erhöht
-    components.html(tv_widget_html, height=880, scrolling=False)
+    # Streamlit-Komponente auf 900 Pixel maximiert, damit der Platz komplett eingenommen wird
+    components.html(tv_widget_html, height=900, scrolling=False)
