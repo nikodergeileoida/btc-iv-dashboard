@@ -1,6 +1,8 @@
 import streamlit as st
 import streamlit.components.v1 as components
 import yfinance as yf
+import pandas as pd
+import plotly.graph_objects as go
 from datetime import datetime
 
 # 1. Konfiguration
@@ -14,12 +16,20 @@ st.set_page_config(
 st.sidebar.title("⚡ Terminal Control")
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("### 👁️ Ansicht")
+st.sidebar.markdown("### 👁️ Ansicht & Engine")
 view_mode = st.sidebar.radio("Modus wählen:", [
     "📈 TradingView Live-Terminal", 
+    "🕯️ Eigene Kerzen (Custom Python Engine)",
     "🧊 Quanten-Membran (Matt)", 
     "⚡ Beide nebeneinander (Split-View)"
 ])
+
+# Zusätzliche Steuerung für Eigene Kerzen
+custom_mode = "Eigene Kerzen" in view_mode or "Split-View" in view_mode
+if custom_mode:
+    st.sidebar.markdown("### 🛠️ Kerzen-Manipulation")
+    smoothing = st.sidebar.slider("Glättungs-Faktor (Smoothing)", 1, 5, 1)
+    price_offset = st.sidebar.number_input("Preis-Offset ($)", value=0.0, step=0.5)
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🌍 Märkte")
@@ -41,7 +51,7 @@ else:
 selected_market = st.sidebar.selectbox("🎯 Spezieller Markt:", list(market_map.keys()))
 ticker_symbol = market_map[selected_market]
 
-# Echte Daten von Yahoo Finance laden (für die Volatilitäts-Kopplung der 3D-Ansicht)
+# Echte Daten von Yahoo Finance laden
 @st.cache_data(ttl=60)
 def fetch_market_data(symbol):
     try:
@@ -54,7 +64,25 @@ def fetch_market_data(symbol):
     except Exception:
         return None, 100.0
 
-df_data, base_price = fetch_market_data(ticker_symbol)
+df_raw, base_price = fetch_market_data(ticker_symbol)
+
+# Eigene Kerzen verarbeiten / manipulieren
+if df_raw is not None and not df_raw.empty:
+    df_data = df_raw.copy()
+    if smoothing > 1:
+        df_data['Open'] = df_data['Open'].rolling(window=smoothing).mean()
+        df_data['High'] = df_data['High'].rolling(window=smoothing).max()
+        df_data['Low'] = df_data['Low'].rolling(window=smoothing).min()
+        df_data['Close'] = df_data['Close'].rolling(window=smoothing).mean()
+        df_data.dropna(inplace=True)
+    
+    # Offset anwenden (falls du deine eigenen Kerzen verschieben willst)
+    df_data['Open'] += price_offset
+    df_data['High'] += price_offset
+    df_data['Low'] += price_offset
+    df_data['Close'] += price_offset
+else:
+    df_data = None
 
 # Marktstatus-Logik
 def get_market_status():
@@ -81,7 +109,7 @@ col3.metric("Modus", view_mode, "Aktiv")
 
 st.divider()
 
-# Hilfsfunktionen für die Widgets
+# Hilfsfunktion für TradingView Original-Widget
 def get_tradingview_html(symbol):
     tv_symbol_map = {
         "BTC-USD": "BINANCE:BTCUSDT", "ETH-USD": "BINANCE:ETHUSDT", "SOL-USD": "BINANCE:SOLUSDT",
@@ -110,6 +138,33 @@ def get_tradingview_html(symbol):
     </html>
     """
 
+# Funktion für Eigene Kerzen (Plotly Pro-Chart)
+def render_custom_candles(df, title_text):
+    if df is None or df.empty:
+        st.warning("Keine Kerzen-Daten verfügbar.")
+        return
+    
+    fig = go.Figure(data=[go.Candlestick(
+        x=df.index,
+        open=df['Open'],
+        high=df['High'],
+        low=df['Low'],
+        close=df['Close'],
+        increasing_line_color='#00F5D4', # Neon-Türkis für steigend
+        decreasing_line_color='#F72585'  # Neon-Pink für fallend
+    )])
+    
+    fig.update_layout(
+        template='plotly_dark',
+        paper_bgcolor='#000000',
+        plot_bgcolor='#000000',
+        margin=dict(l=0, r=0, t=30, b=0),
+        xaxis_rangeslider_visible=False,
+        title=dict(text=title_text, font=dict(size=14, color='orange'))
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+# Hilfsfunktion für Quanten-Membran (3D)
 def get_quantum_html(market_name, price, vol_num, vol_str):
     return f"""
     <!DOCTYPE html>
@@ -118,7 +173,7 @@ def get_quantum_html(market_name, price, vol_num, vol_str):
         <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
         <style>
             body {{ margin: 0; background: #000000; overflow: hidden; }}
-            #plotly-div {{ width: 100%; height: 600px; }}
+            #plotly-div {{ width: 100%; height: 580px; }}
             .controls-overlay {{
                 position: absolute; top: 10px; left: 15px; z-index: 100;
                 display: flex; gap: 10px; align-items: center;
@@ -168,7 +223,7 @@ def get_quantum_html(market_name, price, vol_num, vol_str):
                     x.push(rowX); y.push(rowY); z.push(rowZ);
                 }}
                 return {{ x: x, y: y, z: z }};
-            }}
+            }
 
             let initialData = getSurface(0);
             const data = [{{
@@ -199,7 +254,7 @@ def get_quantum_html(market_name, price, vol_num, vol_str):
             function animate() {{
                 frame += 0.02;
                 let currentData = getSurface(frame);
-                Plotly.restyle(plotDiv, {{ x: [currentData.x], y: [currentData.y], z: [currentData.z] }}, [0]);
+                Plotly.restyle(plotDiv, {{ x: [currentData.x], y: [currentData.y], z: [currentData.z] }}[0]);
                 requestAnimationFrame(animate);
             }}
             requestAnimationFrame(animate);
@@ -208,10 +263,10 @@ def get_quantum_html(market_name, price, vol_num, vol_str):
     </html>
     """
 
-# Volatilitätsfaktor berechnen
-if df_data is not None and len(df_data) > 1:
+# Volatilitätsfaktor für 3D berechnen
+if df_raw is not None and len(df_raw) > 1:
     try:
-        volatility_factor = float((df_data['High'].max() - df_data['Low'].min()) / base_price * 50)
+        volatility_factor = float((df_raw['High'].max() - df_raw['Low'].min()) / base_price * 50)
         volatility_factor = max(0.5, min(volatility_factor, 3.0))
     except Exception:
         volatility_factor = 1.0
@@ -219,22 +274,26 @@ else:
     volatility_factor = 1.0
 
 # 4. Ansichten Rendering
-if "TradingView" in view_mode:
+if "TradingView Live-Terminal" in view_mode:
     st.subheader(f"📈 TradingView Live-Terminal — {selected_market}")
     components.html(get_tradingview_html(ticker_symbol), height=620, scrolling=False)
 
+elif "Eigene Kerzen" in view_mode:
+    st.subheader(f"🕯️ Eigene Kerzen (Custom Python Engine) — {selected_market}")
+    render_custom_candles(df_data, f"Custom OHLC Stream — {selected_market}")
+
 elif "Quanten-Membran" in view_mode:
-    st.subheader(f"🧊 Quanten-Membran (Matt & Butter-Smooth) — {selected_market}")
+    st.subheader(f"🧊 Quanten-Membran (Matt) — {selected_market}")
     html_content = get_quantum_html(selected_market, f"{base_price:,.2f}", volatility_factor, f"{volatility_factor:.2f}")
     components.html(html_content, height=620)
 
-else:  # Split-View (Beide nebeneinander)
-    st.subheader(f"⚡ Dual Terminal & Quanten-Membran — {selected_market}")
+else:  # Split-View (Beide nebeneinander: Eigene Kerzen + 3D Membran)
+    st.subheader(f"⚡ Dual Screen: Eigene Kerzen & Quanten-Membran — {selected_market}")
     col_a, col_b = st.columns(2)
     
     with col_a:
-        st.markdown("**📈 TradingView Live**")
-        components.html(get_tradingview_html(ticker_symbol), height=580, scrolling=False)
+        st.markdown("**🕯️ Eigene Kerzen (Custom)**")
+        render_custom_candles(df_data, f"Custom Stream — {selected_market}")
         
     with col_b:
         st.markdown("**🧊 Quanten-Membran (3D)**")
