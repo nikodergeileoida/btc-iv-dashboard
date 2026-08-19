@@ -15,7 +15,7 @@ st.sidebar.title("⚡ Terminal Control")
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 👁️ Ansicht")
-view_mode = st.sidebar.radio("Modus wählen:", ["📊 Live-Chart (Echte Marktdaten + Ticker)", "🧊 Catenoid-Helicoid-Morph (3D-Minimalfläche)"])
+view_mode = st.sidebar.radio("Modus wählen:", ["📊 Live-Chart (Echte Marktdaten + Ticker)", "🧊 Quanten-Membran (Positive Volatilität ≥ 0)"])
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🌍 Märkte")
@@ -171,12 +171,12 @@ if "Chart" in view_mode:
     st.caption("ℹ️ **Echtdaten-Chart mit Live-Tails:** Basisdaten von Yahoo Finance mit flüssiger Echtzeit-Aktualisierung.")
 
 else:
-    st.subheader(f"🧊 Catenoid-Helicoid-Morph (Gekoppelt an {selected_market})")
+    st.subheader(f"🧊 Quanten-Membran (Gekoppelt an {selected_market})")
     
     if df_data is not None and len(df_data) > 1:
         try:
             volatility_factor = float((df_data['High'].max() - df_data['Low'].min()) / base_price * 50)
-            volatility_factor = max(0.5, min(volatility_factor, 3.5))
+            volatility_factor = max(0.5, min(volatility_factor, 3.0))
         except Exception:
             volatility_factor = 1.0
     else:
@@ -201,25 +201,24 @@ else:
         <div class="market-badge">MARKET_PLACEHOLDER: $PRICE_PLACEHOLDER (Vol: VOL_PLACEHOLDER)</div>
         <div id="plotly-div"></div>
         <script>
-            const res = 80;
+            const n = 45;
             const vol = VOL_PLACEHOLDER_NUM;
 
-            function getMorph(frame) {
+            function getSurface(frame) {
                 let x = [], y = [], z = [];
-                let morph = Math.sin(frame * 0.2) * 0.5 + 0.5; 
-                
-                for (let i = 0; i < res; i++) {
+                for (let i = 0; i < n; i++) {
                     let rowX = [], rowY = [], rowZ = [];
-                    let u = (i / (res - 1)) * 4 - 2;
-                    for (let j = 0; j < res; j++) {
-                        let v = (j / (res - 1)) * Math.PI * 2;
+                    let u = (i / (n - 1)) * 5 - 2.5;
+                    for (let j = 0; j < n; j++) {
+                        let v = (j / (n - 1)) * 5 - 2.5;
+                        let r = Math.sqrt(u*u + v*v);
                         
-                        let px = Math.cosh(u * morph) * Math.cos(v);
-                        let py = Math.cosh(u * morph) * Math.sin(v);
-                        let pz = u * (1 - morph) + Math.sin(u * 3 + frame) * vol * 0.3;
-
-                        rowX.push(px);
-                        rowY.push(py);
+                        // Mathematischer Trick: Absoluter Wert der Welle + Offset, damit Z strikt >= 0 bleibt
+                        let wave = Math.sin(r * 2 - frame) * Math.cos(u * 0.8 + frame * 0.5);
+                        let pz = Math.abs(wave) * vol * 1.2 + 0.05; 
+                        
+                        rowX.push(u);
+                        rowY.push(v);
                         rowZ.push(pz);
                     }
                     x.push(rowX);
@@ -229,25 +228,30 @@ else:
                 return { x: x, y: y, z: z };
             }
 
-            let initialData = getMorph(0);
+            let initialData = getSurface(0);
+
             const data = [{
                 type: 'surface',
-                x: initialData.x, y: initialData.y, z: initialData.z,
-                colorscale: [[0, '#00ffcc'], [0.5, '#000000'], [1, '#ff0055']],
+                x: initialData.x,
+                y: initialData.y,
+                z: initialData.z,
+                colorscale: 'Electric',
                 showscale: false,
-                opacity: 0.9,
-                lighting: { ambient: 0.3, diffuse: 0.9, specular: 0.8, roughness: 0.2 }
+                lighting: { ambient: 0.4, diffuse: 0.8, specular: 0.5, roughness: 0.3 }
             }];
 
             const layout = {
                 template: 'plotly_dark',
                 paper_bgcolor: '#000000',
                 plot_bgcolor: '#000000',
+                autosize: true,
                 margin: {l: 0, r: 0, b: 0, t: 0},
                 scene: {
                     bgcolor: '#000000',
-                    xaxis: {visible: false}, yaxis: {visible: false}, zaxis: {visible: false},
-                    camera: { eye: {x: 1.8, y: 1.8, z: 1.2} }
+                    xaxis: {showgrid: true, zeroline: true, title: 'Strike Price'},
+                    yaxis: {showgrid: true, zeroline: true, title: 'Time'},
+                    zaxis: {showgrid: true, zeroline: true, title: 'Volatility', range: [0, 3.5]},
+                    camera: { eye: {x: 1.5, y: -1.5, z: 1.2} }
                 }
             };
 
@@ -256,9 +260,13 @@ else:
 
             let frame = 0;
             function runAnimation() {
-                frame += 0.04;
-                let currentData = getMorph(frame);
-                Plotly.restyle(plotDiv, {x: [currentData.x], y: [currentData.y], z: [currentData.z]}, [0]);
+                frame += 0.05;
+                let currentData = getSurface(frame);
+                Plotly.restyle(plotDiv, {
+                    x: [currentData.x],
+                    y: [currentData.y],
+                    z: [currentData.z]
+                }, [0]);
                 setTimeout(runAnimation, 16);
             }
             setTimeout(runAnimation, 16);
@@ -268,4 +276,4 @@ else:
     """.replace("MARKET_PLACEHOLDER", selected_market).replace("PRICE_PLACEHOLDER", f"{base_price:,.2f}").replace("VOL_PLACEHOLDER_NUM", str(volatility_factor)).replace("VOL_PLACEHOLDER", f"{volatility_factor:.2f}")
 
     components.html(raw_surface_html, height=600)
-    st.caption(f"ℹ️ **Catenoid-Helicoid-Morph:** Eine fließende Minimalfläche, gekoppelt an die Live-Volatilität von **{selected_market}**.")
+    st.caption(f"ℹ️ **Quanten-Membran (Positive Volatilität):** Die Z-Achse beginnt fest bei 0 und schwingt ausschließlich im positiven Bereich, gekoppelt an **{selected_market}**.")
