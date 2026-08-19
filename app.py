@@ -14,7 +14,7 @@ st.sidebar.title("⚡ Terminal Control")
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 👁️ Ansicht")
-view_mode = st.sidebar.radio("Modus wählen:", ["📊 Chart (Candlestick)", "🧊 Torus-Knoten (Morphing-Geometrie)"])
+view_mode = st.sidebar.radio("Modus wählen:", ["📊 Chart (Candlestick)", "🧊 Aizawa-Attraktor (Sphärisches Chaos)"])
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🌍 Märkte")
@@ -180,9 +180,9 @@ if "Chart" in view_mode:
     st.caption("ℹ️ **Tiefschwarzer Live-Chart:** Vollständig freies Verschieben (Pan) und Zoomen per Mausrad/Klick.")
 
 else:
-    st.subheader(f"🧊 Torus-Knoten (Morphing-Geometrie) — {selected_market}")
+    st.subheader(f"🧊 Aizawa-Attraktor (Sphärisches Chaos) — {selected_market}")
     
-    raw_knot_html = """
+    raw_aizawa_html = """
     <!DOCTYPE html>
     <html>
     <head>
@@ -209,44 +209,48 @@ else:
         </style>
     </head>
     <body>
-        <div class="market-badge">MARKET_NAME: $BASE_PRICE_VAL (Morphing Knot)</div>
+        <div class="market-badge">MARKET_NAME: $BASE_PRICE_VAL (Aizawa Chaos)</div>
         <div class="zoom-controls">
             <button class="zoom-btn" onclick="zoomIn()" title="Hineinzoomen">+</button>
             <button class="zoom-btn" onclick="zoomOut()" title="Herauszoomen">-</button>
         </div>
         <div id="plotly-div"></div>
         <script>
-            const steps = 1200;
-            let p = 2, q = 3;
+            const a = 0.95;
+            const b = 0.7;
+            const c = 0.6;
+            const d = 3.5;
+            const e = 0.25;
+            const f = 0.1;
+            
+            let x = 0.1, y = 0.0, z = 0.0;
+            let dt = 0.01;
+            
+            let x_trail = [], y_trail = [], z_trail = [];
+            const maxPoints = 2500;
 
-            function getKnotPoints(frame) {
-                let x_vals = [], y_vals = [], z_vals = [], color_vals = [];
-                for (let i = 0; i <= steps; i++) {
-                    let t = (i / steps) * Math.PI * 2 * p;
-                    let r = 1.6 + 0.6 * Math.cos(q * t + frame);
-                    let x = r * Math.cos(p * t + frame * 0.3);
-                    let y = r * Math.sin(p * t + frame * 0.3);
-                    let z = 1.2 * Math.sin(q * t + frame);
-                    x_vals.push(x);
-                    y_vals.push(y);
-                    z_vals.push(z);
-                    color_vals.push(t);
-                }
-                return { x: x_vals, y: y_vals, z: z_vals, color: color_vals };
+            for (let i = 0; i < maxPoints; i++) {
+                let dx = (z - b) * x - d * y;
+                let dy = d * x + (z - b) * y;
+                let dz = c + a * z - (Math.pow(z, 3) / 3.0) - (Math.pow(x, 2) + Math.pow(y, 2)) * (1.0 + e * z) + f * z * Math.pow(x, 3);
+                x += dx * dt;
+                y += dy * dt;
+                z += dz * dt;
+                x_trail.push(x);
+                y_trail.push(y);
+                z_trail.push(z);
             }
-
-            let initialData = getKnotPoints(0);
 
             const data = [{
                 type: 'scatter3d',
                 mode: 'lines',
-                x: initialData.x,
-                y: initialData.y,
-                z: initialData.z,
+                x: x_trail,
+                y: y_trail,
+                z: z_trail,
                 line: {
-                    color: initialData.color,
-                    colorscale: 'Plasma',
-                    width: 6
+                    color: z_trail,
+                    colorscale: 'Turbo',
+                    width: 3
                 }
             }];
 
@@ -261,7 +265,7 @@ else:
                     xaxis: {showgrid: false, zeroline: false, showticklabels: false, title: ''},
                     yaxis: {showgrid: false, zeroline: false, showticklabels: false, title: ''},
                     zaxis: {showgrid: false, zeroline: false, showticklabels: false, title: ''},
-                    camera: { eye: {x: 1.6, y: -1.6, z: 1.3} }
+                    camera: { eye: {x: 1.5, y: 1.5, z: 1.2} }
                 }
             };
 
@@ -286,15 +290,32 @@ else:
             plotDiv.addEventListener('touchstart', () => { isInteracting = true; });
             window.addEventListener('touchend', () => { isInteracting = false; });
 
-            let frame = 0;
             function runAnimation() {
                 if (!isInteracting) {
-                    frame += 0.03;
-                    let currentData = getKnotPoints(frame);
+                    for(let s = 0; s < 4; s++) {
+                        let dx = (z - b) * x - d * y;
+                        let dy = d * x + (z - b) * y;
+                        let dz = c + a * z - (Math.pow(z, 3) / 3.0) - (Math.pow(x, 2) + Math.pow(y, 2)) * (1.0 + e * z) + f * z * Math.pow(x, 3);
+                        x += dx * dt;
+                        y += dy * dt;
+                        z += dz * dt;
+                        
+                        x_trail.push(x);
+                        y_trail.push(y);
+                        z_trail.push(z);
+                        
+                        if (x_trail.length > maxPoints) {
+                            x_trail.shift();
+                            y_trail.shift();
+                            z_trail.shift();
+                        }
+                    }
+
                     Plotly.restyle(plotDiv, {
-                        x: [currentData.x],
-                        y: [currentData.y],
-                        z: [currentData.z]
+                        x: [x_trail],
+                        y: [y_trail],
+                        z: [z_trail],
+                        'line.color': [z_trail]
                     }, [0]);
                 }
                 setTimeout(runAnimation, 40);
@@ -306,11 +327,11 @@ else:
     </html>
     """
     
-    knot_html = (
-        raw_knot_html
+    aizawa_html = (
+        raw_aizawa_html
         .replace("MARKET_NAME", selected_market)
         .replace("BASE_PRICE_VAL", f"{base_price:,.2f}")
     )
     
-    components.html(knot_html, height=600)
-    st.caption("ℹ️ **Torus-Knoten (Morphing):** Eine sich fließend transformierende, dreidimensionale geometrische Schleife. Nutze die Zoom-Buttons oder drehe das Modell frei mit der Maus.")
+    components.html(aizawa_html, height=600)
+    st.caption("ℹ️ **Aizawa-Attraktor (Sphärisches Chaos):** Ein lebendiges, tunnelartiges Strömungsmodell. Nutze die Zoom-Buttons oder drehe das Modell stufenlos per Maus.")
