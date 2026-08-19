@@ -192,7 +192,7 @@ def get_tradingview_html(symbol_key):
     </html>
     """
 
-# 💡 Perfekt persistente Custom-Kerzen (Zoom-stabil, kein Flackern, uneingeschränktes Zoomen)
+# 💡 Perfekt persistente Custom-Kerzen (Zoom-stabil, kein Flackern)
 def get_persistent_candles_html(df, title_text, key_suffix=""):
     if df is None or df.empty:
         return "<div>Keine Kerzen-Daten verfügbar.</div>"
@@ -313,8 +313,8 @@ def get_persistent_candles_html(df, title_text, key_suffix=""):
     </html>
     """
 
-# Funktion für persistente Quanten-Membran (3D)
-def get_persistent_quantum_html(market_name, price, vol_num, key_suffix=""):
+# 💡 100% Flickerfreie Quanten-Membran (3D) durch stabil gehaltene HTML-Struktur
+def get_persistent_quantum_html(market_name, vol_num, key_suffix=""):
     return f"""
     <!DOCTYPE html>
     <html>
@@ -347,7 +347,7 @@ def get_persistent_quantum_html(market_name, price, vol_num, key_suffix=""):
     <body>
         <div id="chart-container_{key_suffix}">
             <div class="controls-overlay">
-                <div class="market-badge">{market_name}: ${price}</div>
+                <div class="market-badge">{market_name} // Quanten-Membran</div>
                 <button class="fs-btn" onclick="toggleFullscreen()">⛶ Fullscreen</button>
             </div>
             <div id="plotly-div_{key_suffix}"></div>
@@ -435,11 +435,12 @@ def get_persistent_quantum_html(market_name, price, vol_num, key_suffix=""):
     </html>
     """
 
-# Volatilitätsfaktor für 3D berechnen
+# Volatilitätsfaktor stabil berechnen (auf 1 Nachkommastelle gerundet gegen minimale Ticker-Schwankungen)
 if df_raw is not None and len(df_raw) > 1:
     try:
         volatility_factor = float((df_raw['High'].max() - df_raw['Low'].min()) / base_price * 50)
         volatility_factor = max(0.5, min(volatility_factor, 3.0))
+        volatility_factor = round(volatility_factor, 1)
     except Exception:
         volatility_factor = 1.0
 else:
@@ -458,7 +459,7 @@ elif "Eigene Kerzen" in view_mode:
 
 elif "Quanten-Membran" in view_mode:
     st.subheader(f"🧊 Quanten-Membran (Matt) — {selected_market}")
-    html_content = get_persistent_quantum_html(selected_market, f"${base_price:,.2f}", volatility_factor, key_suffix="single_quantum")
+    html_content = get_persistent_quantum_html(selected_market, volatility_factor, key_suffix="single_quantum")
     components.html(html_content, height=620)
 
 else:  
@@ -471,7 +472,7 @@ else:
         
     with col_b:
         st.markdown("**🧊 Quanten-Membran (3D)**")
-        html_content = get_persistent_quantum_html(selected_market, f"{base_price:,.2f}", volatility_factor, key_suffix="split_quantum")
+        html_content = get_persistent_quantum_html(selected_market, volatility_factor, key_suffix="split_quantum")
         components.html(html_content, height=580)
 
 # Live-Feed Loop
