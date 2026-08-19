@@ -14,7 +14,7 @@ st.sidebar.title("⚡ Terminal Control")
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 👁️ Ansicht")
-view_mode = st.sidebar.radio("Modus wählen:", ["📊 Chart (Candlestick)", "🧊 4D Tesseract (Hypercube)"])
+view_mode = st.sidebar.radio("Modus wählen:", ["📊 Chart (Candlestick)", "🧊 Lorenz-Attraktor (Chaos-Modell)"])
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🌍 Märkte")
@@ -180,9 +180,9 @@ if "Chart" in view_mode:
     st.caption("ℹ️ **Tiefschwarzer Live-Chart:** Vollständig freies Verschieben (Pan) und Zoomen per Mausrad/Klick.")
 
 else:
-    st.subheader(f"🧊 4D Tesseract (Hypercube) — {selected_market}")
+    st.subheader(f"🧊 Lorenz-Attraktor (Chaos-Modell) — {selected_market}")
     
-    raw_tesseract_html = """
+    raw_lorenz_html = """
     <!DOCTYPE html>
     <html>
     <head>
@@ -198,83 +198,42 @@ else:
         </style>
     </head>
     <body>
-        <div class="market-badge">MARKET_NAME: $BASE_PRICE_VAL (4D Hypercube Rotation)</div>
+        <div class="market-badge">MARKET_NAME: $BASE_PRICE_VAL (Chaos Lorenz Attractor)</div>
         <div id="plotly-div"></div>
         <script>
-            // 16 Eckpunkte eines 4D-Hyperwürfels generieren
-            let vertices = [];
-            for (let i = 0; i < 16; i++) {
-                vertices.push([
-                    (i & 1) ? 1 : -1,
-                    (i & 2) ? 1 : -1,
-                    (i & 4) ? 1 : -1,
-                    (i & 8) ? 1 : -1
-                ]);
+            // Lorenz Attraktor Parameter
+            const sigma = 10;
+            const beta = 8.0 / 3.0;
+            const rho = 28;
+            
+            let x = 0.1, y = 1.0, z = 1.0;
+            let dt = 0.012;
+            
+            let x_trail = [], y_trail = [], z_trail = [];
+            const maxPoints = 2000;
+
+            // Initialisierung der Bahn
+            for (let i = 0; i < maxPoints; i++) {
+                let dx = sigma * (y - x) * dt;
+                let dy = (x * (rho - z) - y) * dt;
+                let dz = (x * y - beta * z) * dt;
+                x += dx; y += dy; z += dz;
+                x_trail.push(x);
+                y_trail.push(y);
+                z_trail.push(z);
             }
-
-            // 32 Kanten definieren (Eckpunkte, die sich um exakt 1 Koordinate unterscheiden)
-            let edges = [];
-            for (let i = 0; i < 16; i++) {
-                for (let j = i + 1; j < 16; j++) {
-                    let diff = 0;
-                    for (let k = 0; k < 4; k++) {
-                        if (vertices[i][k] !== vertices[j][k]) diff++;
-                    }
-                    if (diff === 1) {
-                        edges.push([i, j]);
-                    }
-                }
-            }
-
-            function getProjectedCoordinates(angle) {
-                let projected_vertices = [];
-                for (let i = 0; i < 16; i++) {
-                    let v = [...vertices[i]];
-                    
-                    // 4D Rotation in der XW-Ebene
-                    let x = v[0], w = v[3];
-                    let cosA = Math.cos(angle), sinA = Math.sin(angle);
-                    let x1 = x * cosA - w * sinA;
-                    let w1 = x * sinA + w * cosA;
-                    
-                    // 4D Rotation in der YW-Ebene
-                    let y = v[1];
-                    let y1 = y * cosA - w1 * sinA;
-                    let w2 = y * sinA + w1 * cosA;
-                    
-                    let z = v[2];
-                    
-                    // Perspektivische Projektion von 4D nach 3D
-                    let distance = 2.5;
-                    let w_factor = 1 / (distance - w2);
-                    
-                    projected_vertices.push([
-                        x1 * w_factor * 1.8,
-                        y1 * w_factor * 1.8,
-                        z * w_factor * 1.8
-                    ]);
-                }
-
-                let x_coords = [], y_coords = [], z_coords = [];
-                for (let edge of edges) {
-                    let p1 = projected_vertices[edge[0]];
-                    let p2 = projected_vertices[edge[1]];
-                    x_coords.push(p1[0], p2[0], null);
-                    y_coords.push(p1[1], p2[1], null);
-                    z_coords.push(p1[2], p2[2], null);
-                }
-                return { x: x_coords, y: y_coords, z: z_coords };
-            }
-
-            let initialCoords = getProjectedCoordinates(0);
 
             const data = [{
                 type: 'scatter3d',
                 mode: 'lines',
-                x: initialCoords.x,
-                y: initialCoords.y,
-                z: initialCoords.z,
-                line: { color: '#00ffcc', width: 5 }
+                x: x_trail,
+                y: y_trail,
+                z: z_trail,
+                line: {
+                    color: z_trail,
+                    colorscale: 'Viridis',
+                    width: 3
+                }
             }];
 
             const layout = {
@@ -288,7 +247,7 @@ else:
                     xaxis: {showgrid: false, zeroline: false, showticklabels: false, title: ''},
                     yaxis: {showgrid: false, zeroline: false, showticklabels: false, title: ''},
                     zaxis: {showgrid: false, zeroline: false, showticklabels: false, title: ''},
-                    camera: { eye: {x: 1.5, y: -1.5, z: 1.2} }
+                    camera: { eye: {x: 1.5, y: -1.8, z: 1.2} }
                 }
             };
 
@@ -302,15 +261,31 @@ else:
             plotDiv.addEventListener('touchstart', () => { isInteracting = true; });
             window.addEventListener('touchend', () => { isInteracting = false; });
 
-            let frame = 0;
             function runAnimation() {
                 if (!isInteracting) {
-                    frame += 0.025;
-                    let coords = getProjectedCoordinates(frame);
+                    // Mehrere Schritte pro Frame für flüssiges Wachstum
+                    for(let s = 0; s < 3; s++) {
+                        let dx = sigma * (y - x) * dt;
+                        let dy = (x * (rho - z) - y) * dt;
+                        let dz = (x * y - beta * z) * dt;
+                        x += dx; y += dy; z += dz;
+                        
+                        x_trail.push(x);
+                        y_trail.push(y);
+                        z_trail.push(z);
+                        
+                        if (x_trail.length > maxPoints) {
+                            x_trail.shift();
+                            y_trail.shift();
+                            z_trail.shift();
+                        }
+                    }
+
                     Plotly.restyle('plotly-div', {
-                        x: [coords.x],
-                        y: [coords.y],
-                        z: [coords.z]
+                        x: [x_trail],
+                        y: [y_trail],
+                        z: [z_trail],
+                        'line.color': [z_trail]
                     }, [0]);
                 }
                 setTimeout(runAnimation, 40);
@@ -322,11 +297,11 @@ else:
     </html>
     """
     
-    tesseract_html = (
-        raw_tesseract_html
+    lorenz_html = (
+        raw_lorenz_html
         .replace("MARKET_NAME", selected_market)
         .replace("BASE_PRICE_VAL", f"{base_price:,.2f}")
     )
     
-    components.html(tesseract_html, height=600)
-    st.caption("ℹ️ **4D Tesseract:** Ein vierdimensionaler Hyperwürfel, der live rotiert und in den 3D-Raum projiziert wird. Du kannst das Modell jederzeit mit der Maus frei drehen und zoomen.")
+    components.html(lorenz_html, height=600)
+    st.caption("ℹ️ **Lorenz-Attraktor:** Ein unendliches, chaotisches System, das sich live im 3D-Raum zeichnet. Die Kamera bleibt voll steuerbar.")
